@@ -275,3 +275,25 @@ producing working, testable software on its own. Specs live in `docs/superpowers
 4. **Template + Excel + PDF** — `TemplateProfile`, `IExcelWriter` (ClosedXML), `IPdfConverter`
    (LibreOffice headless), and the template / config page.
 5. **History** — `DeclarationRun` persistence, the history page, and `.xlsx` / `.pdf` downloads.
+
+## 14. Design language & theming
+
+The visual vocabulary is **"Wayfinding"**: locations read as transit lines, days as stops, and
+the working surface as a departure/schedule board. Boldness is spent in one place — the line
+bullet and the ink board — everything else stays quiet. It lives in two coordinated files:
+
+- **`src/Transit.Web/wwwroot/tokens.css` — the source of truth.** CSS custom properties
+  (`--tr-*`) for palette, type, and shape, plus the custom component classes (`.tr-bullet`,
+  `.tr-board`, `.tr-day`, `.tr-brush`, `.tr-note`, …). Every custom selector is prefixed
+  `tr-` / `--tr-` so it never collides with Bootstrap or MudBlazor.
+- **`src/Transit.Web/Theme/TransitTheme.cs` — a `MudTheme` mirror.** It restates the same
+  palette and typefaces so built-in MudBlazor components match the custom vocabulary. Applied
+  through the `MudThemeProvider`.
+
+**Sync rule (careful zone):** `tokens.css` is authoritative; `TransitTheme.cs` mirrors it by
+hand — they are *not* generated from each other. A palette/type/shape change in one **must** be
+made in the other in the same change, or MudBlazor components and custom markup drift apart.
+
+Fonts — Space Grotesk (display), IBM Plex Sans (body), IBM Plex Mono (mono) — are loaded in
+`App.razor`. Component markup consumes the tokens and `tr-` classes; it never hard-codes
+colours. Each future `/frontend-design` pass updates these two files, not the pages.

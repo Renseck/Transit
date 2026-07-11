@@ -9,55 +9,78 @@
 
 <PageTitle>Attendance</PageTitle>
 
-<MudStack Spacing="4">
-    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
-        <MudText Typo="Typo.h5">@_monthLabel</MudText>
-        <MudButtonGroup Variant="Variant.Outlined">
-            <MudButton OnClick="PrevMonth">Prev</MudButton>
-            <MudButton OnClick="GoToday">Today</MudButton>
-            <MudButton OnClick="NextMonth">Next</MudButton>
-        </MudButtonGroup>
-    </MudStack>
+<div class="tr-stack">
+    <header class="tr-board">
+        <div>
+            <div class="tr-board__eyebrow">Period</div>
+            <h1 class="tr-board__month">@_monthLabel</h1>
+        </div>
+        <nav class="tr-board__nav" aria-label="Change month">
+            <button type="button" class="tr-ctrl" @onclick="PrevMonth" aria-label="Previous month">‹ Prev</button>
+            <button type="button" class="tr-ctrl tr-ctrl--now" @onclick="GoToday">Today</button>
+            <button type="button" class="tr-ctrl" @onclick="NextMonth" aria-label="Next month">Next ›</button>
+        </nav>
+    </header>
 
-    <MudPaper Class="pa-3" Elevation="0" Outlined="true">
-        <MudText Typo="Typo.subtitle2" Class="mb-2">Brush</MudText>
-        <MudChipSet T="int" SelectedValue="_activeLocationId" SelectedValueChanged="OnBrushChanged">
+    <div class="tr-brush-bar" role="radiogroup" aria-label="Active location">
+        <span class="tr-brush-bar__label">Brush</span>
+        <div class="tr-brush-set">
             @foreach (var loc in _locations)
             {
-                <MudChip T="int" Value="loc.Id" Style="@ChipStyle(loc)">@loc.Name</MudChip>
+                <button type="button"
+                        class="tr-brush"
+                        style="--line:@loc.ColorHex"
+                        aria-pressed="@((loc.Id == _activeLocationId).ToString().ToLowerInvariant())"
+                        @onclick="() => OnBrushChanged(loc.Id)">
+                    <span class="tr-bullet @(loc.CountsAsTravel ? "" : "tr-bullet--outline")"
+                          style="--bullet-color:@loc.ColorHex;--bullet-fg:@ContrastText(loc.ColorHex)">@Initial(loc)</span>
+                    <span class="tr-brush__name">@loc.Name</span>
+                </button>
             }
-        </MudChipSet>
-    </MudPaper>
+        </div>
+    </div>
 
-    <MudSimpleTable Dense="true" Bordered="true" Class="attendance-grid">
-        <thead>
-            <tr>
-                @foreach (var head in _weekdayHeaders)
-                {
-                    <th style="text-align:center">@head</th>
-                }
-            </tr>
-        </thead>
-        <tbody>
+    <section aria-label="Attendance calendar">
+        <div class="tr-cal-head">
+            @for (var i = 0; i < _weekdayHeaders.Length; i++)
+            {
+                var weekend = i >= 5;
+                <div class="tr-cal-head__cell @(weekend ? "tr-cal-head__cell--weekend" : "")">@_weekdayHeaders[i]</div>
+            }
+        </div>
+        <div class="tr-cal-grid">
             @foreach (var week in _grid.Weeks)
             {
-                <tr>
-                    @foreach (var day in week)
-                    {
-                        <td style="@DayStyle(day)" @onclick="() => OnDayClick(day)">
-                            <div style="text-align:center">@day.Date.Day</div>
-                        </td>
-                    }
-                </tr>
+                @foreach (var day in week)
+                {
+                    var marked = LocationFor(day.Date);
+                    <button type="button"
+                            class="@DayClasses(day, marked)"
+                            style="@DayVars(marked)"
+                            aria-label="@DayLabel(day, marked)"
+                            @onclick="() => OnDayClick(day)">
+                        <span class="tr-day__num">@day.Date.Day</span>
+                        <span class="tr-day__mark">
+                            @if (marked is not null)
+                            {
+                                <span class="tr-bullet @(marked.CountsAsTravel ? "" : "tr-bullet--outline")"
+                                      style="--bullet-color:@marked.ColorHex;--bullet-fg:@ContrastText(marked.ColorHex)">@Initial(marked)</span>
+                            }
+                        </span>
+                    </button>
+                }
             }
-        </tbody>
-    </MudSimpleTable>
+        </div>
+    </section>
 
-    <MudAlert Severity="Severity.Info" Dense="true">
-        Unmarked weekdays are treated as the default location (Home) at generation time and can be
-        overridden later in the review grid.
-    </MudAlert>
-</MudStack>
+    <p class="tr-note">
+        <span class="tr-note__key">Note</span>
+        <span>
+            Unmarked weekdays are treated as the default location (Home) at generation time, and can be
+            overridden later in the review grid.
+        </span>
+    </p>
+</div>
 
 @code {
     private static readonly string[] _weekdayHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -133,15 +156,64 @@
     private WorkLocation? LocationFor(DateOnly date)
         => _marks.TryGetValue(date, out var id) ? _locations.FirstOrDefault(l => l.Id == id) : null;
 
-    private string ChipStyle(WorkLocation loc)
-        => $"border-left:6px solid {loc.ColorHex};";
+    private static string Initial(WorkLocation loc)
+        => string.IsNullOrEmpty(loc.Name) ? "?" : loc.Name[..1].ToUpperInvariant();
 
-    private string DayStyle(CalendarDay day)
+    private string DayClasses(CalendarDay day, WorkLocation? marked)
     {
-        var marked = LocationFor(day.Date);
-        var background = marked is not null ? marked.ColorHex : "transparent";
-        var weekend = day.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-        var opacity = day.InCurrentMonth ? (weekend ? "0.85" : "1") : "0.35";
-        return $"cursor:pointer;background:{background};opacity:{opacity};height:56px;vertical-align:top;";
+        var classes = new List<string> { "tr-day" };
+        if (marked is not null)
+        {
+            classes.Add("tr-day--marked");
+        }
+        if (day.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+        {
+            classes.Add("tr-day--weekend");
+        }
+        if (!day.InCurrentMonth)
+        {
+            classes.Add("tr-day--outside");
+        }
+        if (day.Date == DateOnly.FromDateTime(DateTime.Today))
+        {
+            classes.Add("tr-day--today");
+        }
+        return string.Join(' ', classes);
+    }
+
+    private static string DayVars(WorkLocation? marked)
+        => marked is not null ? $"--line:{marked.ColorHex}" : string.Empty;
+
+    private string DayLabel(CalendarDay day, WorkLocation? marked)
+    {
+        var date = day.Date.ToString("dddd d MMMM");
+        return marked is not null ? $"{date} — {marked.Name}" : $"{date} — unmarked";
+    }
+
+    // Pick a legible glyph colour for a bullet against an arbitrary line colour.
+    private static string ContrastText(string hex)
+    {
+        if (!TryParseHex(hex, out var r, out var g, out var b))
+        {
+            return "#FFFFFF";
+        }
+
+        // Relative luminance (sRGB, simple coefficients) — dark ink on light lines.
+        var luminance = ((0.299 * r) + (0.587 * g) + (0.114 * b)) / 255.0;
+        return luminance > 0.6 ? "#1A1F2B" : "#FFFFFF";
+    }
+
+    private static bool TryParseHex(string hex, out int r, out int g, out int b)
+    {
+        r = g = b = 0;
+        var value = hex.TrimStart('#');
+        if (value.Length != 6)
+        {
+            return false;
+        }
+
+        return int.TryParse(value.AsSpan(0, 2), System.Globalization.NumberStyles.HexNumber, null, out r)
+            && int.TryParse(value.AsSpan(2, 2), System.Globalization.NumberStyles.HexNumber, null, out g)
+            && int.TryParse(value.AsSpan(4, 2), System.Globalization.NumberStyles.HexNumber, null, out b);
     }
 }

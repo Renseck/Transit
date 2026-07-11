@@ -126,6 +126,9 @@ filesystem, the database, or shells out goes behind one of these.
 - **Dates:** watch for any implicit timezone conversion that could shift a day.
 - **Durability:** `C:\ProgramData\Transit\` is the only copy of attendance history — never write code that
   destructively rewrites it in place.
+- **Theming is dual-source.** `wwwroot/tokens.css` is authoritative; `Theme/TransitTheme.cs`
+  mirrors it by hand. Change one → change the other in the same diff, or MudBlazor components
+  and custom `tr-` markup drift apart.
 
 ## Testing
 

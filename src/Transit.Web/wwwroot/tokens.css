@@ -1,0 +1,378 @@
+/* ============================================================================
+   Transit — design language ("Wayfinding")
+   Source of truth for the visual vocabulary. Locations read as transit lines,
+   days as stops, the working surface as a schedule board. Boldness is spent in
+   one place — the line bullet + the ink board — everything else stays quiet.
+
+   Naming: every token and component class is prefixed `tr-` / `--tr-` so it
+   never collides with Bootstrap or MudBlazor selectors.
+   ============================================================================ */
+
+:root {
+    /* --- Chrome ------------------------------------------------------------ */
+    --tr-ink: #1A1F2B;          /* departure-board dark: rail, board, bullets  */
+    --tr-ink-2: #232B3A;        /* raised ink surface                          */
+    --tr-paper: #F4F5F3;        /* app background — cool off-white, not cream  */
+    --tr-surface: #FFFFFF;      /* cards, calendar cells                       */
+    --tr-signal: #F5A623;       /* signal amber — the one saturated note       */
+    --tr-signal-hi: #FFB63A;    /* signal, hover                               */
+    --tr-signal-ink: #1A1F2B;   /* text on signal                             */
+
+    /* --- Text & lines ----------------------------------------------------- */
+    --tr-text: #1A1F2B;
+    --tr-muted: #6B7280;
+    --tr-rail: #D8DBD6;         /* hairline rules / borders                    */
+    --tr-rail-strong: #B7BCB5;
+    --tr-on-ink: #E9ECEA;       /* text on ink                                 */
+    --tr-on-ink-dim: #8A93A3;   /* secondary text on ink                       */
+
+    /* --- Type ------------------------------------------------------------- */
+    --tr-font-display: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+    --tr-font-body: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+    --tr-font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+    /* --- Shape ------------------------------------------------------------ */
+    --tr-radius: 10px;
+    --tr-radius-sm: 6px;
+    --tr-bullet-size: 26px;
+}
+
+/* ── Line bullet ─────────────────────────────────────────────────────────────
+   The signature. A route roundel carrying a location's colour + initial. Used
+   as brush chip, day mark, and (later) review-grid / declaration marker.
+   `--bullet-color` is the line colour; `--bullet-fg` the glyph colour.        */
+.tr-bullet {
+    --_c: var(--bullet-color, var(--tr-muted));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--tr-bullet-size);
+    height: var(--tr-bullet-size);
+    flex: none;
+    border-radius: 50%;
+    background: var(--_c);
+    color: var(--bullet-fg, #fff);
+    font-family: var(--tr-font-display);
+    font-weight: 600;
+    font-size: 0.78rem;
+    line-height: 1;
+}
+
+/* Non-travel location = "off the network": hollow bullet, no fill. */
+.tr-bullet--outline {
+    background: transparent;
+    color: var(--_c);
+    box-shadow: inset 0 0 0 2px var(--_c);
+}
+
+/* ── Signage rail (app bar) ─────────────────────────────────────────────── */
+.tr-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.tr-brand__bullet {
+    width: 15px;
+    height: 15px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--tr-signal);
+    box-shadow: 0 0 0 4px rgba(245, 166, 35, 0.18);
+}
+
+.tr-brand__word {
+    font-family: var(--tr-font-display);
+    font-weight: 600;
+    font-size: 1.05rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--tr-on-ink);
+}
+
+.tr-rail__tag {
+    font-family: var(--tr-font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+    color: var(--tr-on-ink-dim);
+}
+
+/* ── Drawer ─────────────────────────────────────────────────────────────── */
+.tr-drawer {
+    padding: 1.25rem 0.75rem 0.75rem;
+}
+
+.tr-drawer__eyebrow {
+    padding: 0 0.75rem 0.6rem;
+    font-family: var(--tr-font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--tr-on-ink-dim);
+}
+
+/* ── Page scaffold ──────────────────────────────────────────────────────── */
+.tr-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+/* ── Board header (month navigator, styled as a departure board) ────────── */
+.tr-board {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1.1rem 1.25rem;
+    background: var(--tr-ink);
+    color: var(--tr-on-ink);
+    border-radius: var(--tr-radius);
+}
+
+.tr-board__eyebrow {
+    font-family: var(--tr-font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--tr-on-ink-dim);
+}
+
+.tr-board__month {
+    margin: 0.3rem 0 0;
+    font-family: var(--tr-font-display);
+    font-weight: 600;
+    font-size: clamp(1.7rem, 4vw, 2.4rem);
+    line-height: 1;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+}
+
+.tr-board__nav {
+    display: flex;
+    gap: 0.4rem;
+}
+
+/* Board controls */
+.tr-ctrl {
+    font-family: var(--tr-font-mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--tr-on-ink);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: var(--tr-radius-sm);
+    padding: 0.5rem 0.8rem;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.tr-ctrl:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.tr-ctrl--now {
+    color: var(--tr-signal-ink);
+    background: var(--tr-signal);
+    border-color: var(--tr-signal);
+    font-weight: 600;
+}
+
+.tr-ctrl--now:hover {
+    background: var(--tr-signal-hi);
+    border-color: var(--tr-signal-hi);
+}
+
+/* ── Brush bar ──────────────────────────────────────────────────────────── */
+.tr-brush-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    flex-wrap: wrap;
+    padding: 0.85rem 1rem;
+    background: var(--tr-surface);
+    border: 1px solid var(--tr-rail);
+    border-radius: var(--tr-radius);
+}
+
+.tr-brush-bar__label {
+    font-family: var(--tr-font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--tr-muted);
+}
+
+.tr-brush-set {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.tr-brush {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.8rem 0.35rem 0.4rem;
+    background: var(--tr-surface);
+    border: 1px solid var(--tr-rail);
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: var(--tr-font-body);
+    font-size: 0.85rem;
+    color: var(--tr-text);
+    transition: border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+
+.tr-brush:hover {
+    border-color: var(--tr-rail-strong);
+}
+
+.tr-brush[aria-pressed="true"] {
+    background: color-mix(in srgb, var(--line) 8%, var(--tr-surface));
+    border-color: color-mix(in srgb, var(--line) 55%, var(--tr-rail));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 55%, var(--tr-rail));
+}
+
+.tr-brush__name {
+    line-height: 1;
+}
+
+/* ── Calendar (schedule board) ──────────────────────────────────────────── */
+.tr-cal-head,
+.tr-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+}
+
+.tr-cal-head {
+    margin-bottom: 6px;
+}
+
+.tr-cal-head__cell {
+    text-align: center;
+    padding: 0.25rem 0;
+    font-family: var(--tr-font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--tr-muted);
+}
+
+.tr-cal-head__cell--weekend {
+    color: color-mix(in srgb, var(--tr-muted) 55%, transparent);
+}
+
+.tr-day {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 68px;
+    gap: 0.25rem;
+    padding: 6px 8px;
+    background: var(--tr-surface);
+    border: 1px solid var(--tr-rail);
+    border-radius: var(--tr-radius-sm);
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    transition: border-color 0.12s ease, background 0.12s ease, transform 0.05s ease;
+}
+
+.tr-day:hover {
+    border-color: var(--tr-rail-strong);
+}
+
+.tr-day:active {
+    transform: translateY(1px);
+}
+
+.tr-day__num {
+    font-family: var(--tr-font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--tr-muted);
+}
+
+.tr-day__mark {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+}
+
+.tr-day--marked {
+    background: color-mix(in srgb, var(--line) 12%, var(--tr-surface));
+    border-color: color-mix(in srgb, var(--line) 32%, var(--tr-rail));
+}
+
+.tr-day--marked .tr-day__num {
+    color: var(--tr-text);
+}
+
+.tr-day--weekend {
+    background: var(--tr-paper);
+    border-style: dashed;
+}
+
+.tr-day--weekend.tr-day--marked {
+    border-style: solid;
+}
+
+.tr-day--outside {
+    opacity: 0.4;
+}
+
+/* "You are here." */
+.tr-day--today {
+    box-shadow: inset 0 0 0 2px var(--tr-signal);
+}
+
+.tr-day--today .tr-day__num {
+    color: var(--tr-signal-ink);
+    font-weight: 600;
+}
+
+/* ── Standing note ──────────────────────────────────────────────────────── */
+.tr-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    padding: 0.7rem 0.9rem;
+    background: var(--tr-paper);
+    border: 1px dashed var(--tr-rail);
+    border-radius: var(--tr-radius-sm);
+    font-size: 0.82rem;
+    color: var(--tr-muted);
+}
+
+.tr-note__key {
+    flex: none;
+    font-family: var(--tr-font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--tr-text);
+    padding-top: 0.05rem;
+}
+
+/* ── Quality floor ──────────────────────────────────────────────────────── */
+.tr-day:focus-visible,
+.tr-brush:focus-visible,
+.tr-ctrl:focus-visible {
+    outline: 2px solid var(--tr-signal);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tr-day,
+    .tr-brush,
+    .tr-ctrl {
+        transition: none;
+    }
+}

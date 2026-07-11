@@ -1,15 +1,20 @@
 ﻿@inherits LayoutComponentBase
 
-<MudThemeProvider />
+<MudThemeProvider Theme="TransitTheme.Instance" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
 <MudLayout>
-    <MudAppBar Elevation="1">
-        <MudText Typo="Typo.h6">Transit</MudText>
+    <MudAppBar Elevation="0">
+        <div class="tr-brand">
+            <span class="tr-brand__bullet"></span>
+            <span class="tr-brand__word">Transit</span>
+        </div>
+        <MudSpacer />
+        <span class="tr-rail__tag">commute-km declaration</span>
     </MudAppBar>
-    <MudDrawer Open="true" Elevation="1" Variant="@DrawerVariant.Persistent">
+    <MudDrawer Open="true" Elevation="0" Variant="@DrawerVariant.Persistent">
         <NavMenu />
     </MudDrawer>
     <MudMainContent>
