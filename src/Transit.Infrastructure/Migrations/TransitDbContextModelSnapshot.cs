@@ -45,6 +45,12 @@ namespace Transit.Infrastructure.Migrations
                     b.Property<bool>("CountsAsTravel")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsDefaultForUnmarked")
                         .HasColumnType("INTEGER");
 

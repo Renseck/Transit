@@ -14,8 +14,8 @@ public static class DatabaseSeeder
         }
 
         db.WorkLocations.AddRange(
-            new WorkLocation { Name = "Home",   ColorHex = "#4CAF50", CountsAsTravel = false, IsDefaultForUnmarked = true },
-            new WorkLocation { Name = "Office", ColorHex = "#1976D2", CountsAsTravel = true,  IsDefaultForUnmarked = false });
+            new WorkLocation { Name = "Home",   ColorHex = "#4C566A", CountsAsTravel = false, IsDefaultForUnmarked = true,  IsArchived = false, DisplayOrder = 0 },
+            new WorkLocation { Name = "Office", ColorHex = "#3B5BDB", CountsAsTravel = true,  IsDefaultForUnmarked = false, IsArchived = false, DisplayOrder = 1 });
 
         await db.SaveChangesAsync(ct);
     }
