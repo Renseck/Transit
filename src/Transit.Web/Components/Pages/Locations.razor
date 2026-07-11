@@ -45,12 +45,12 @@
                     @if (!loc.IsDefaultForUnmarked)
                     {
                         <MudIconButton Icon="@Icons.Material.Filled.Star" Size="Size.Small"
-                                       Title="Make default" OnClick="() => MakeDefault(loc.Id)" />
+                                       title="Make default" OnClick="() => MakeDefault(loc.Id)" />
                     }
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                   Title="Edit" OnClick="() => EditLine(loc)" />
+                                   title="Edit" OnClick="() => EditLine(loc)" />
                     <MudIconButton Icon="@Icons.Material.Filled.Archive" Size="Size.Small"
-                                   Title="Archive" OnClick="() => Archive(loc.Id)" />
+                                   title="Archive" OnClick="() => Archive(loc.Id)" />
                 </span>
             </div>
         }
@@ -69,7 +69,7 @@
                         <span class="tr-line-row__name">@loc.Name</span>
                         <span class="tr-line-row__spacer"></span>
                         <MudIconButton Icon="@Icons.Material.Filled.Unarchive" Size="Size.Small"
-                                       Title="Unarchive" OnClick="() => Unarchive(loc.Id)" />
+                                       title="Unarchive" OnClick="() => Unarchive(loc.Id)" />
                     </div>
                 }
             </div>

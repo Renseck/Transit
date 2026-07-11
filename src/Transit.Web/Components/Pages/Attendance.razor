@@ -30,13 +30,20 @@
                 <button type="button"
                         class="tr-brush"
                         style="--line:@loc.ColorHex"
-                        aria-pressed="@((loc.Id == _activeLocationId).ToString().ToLowerInvariant())"
+                        aria-pressed="@Pressed(_brushSelected && _activeLocationId == loc.Id)"
                         @onclick="() => OnBrushChanged(loc.Id)">
                     <span class="tr-bullet @(loc.CountsAsTravel ? "" : "tr-bullet--outline")"
                           style="--bullet-color:@loc.ColorHex;--bullet-fg:@ContrastText(loc.ColorHex)">@Initial(loc)</span>
                     <span class="tr-brush__name">@loc.Name</span>
                 </button>
             }
+            <button type="button"
+                    class="tr-brush tr-brush--erase"
+                    aria-pressed="@Pressed(_brushSelected && _activeLocationId is null)"
+                    @onclick="OnEraserChosen">
+                <span class="tr-bullet tr-bullet--erase">⌫</span>
+                <span class="tr-brush__name">Erase</span>
+            </button>
         </div>
     </div>
 
@@ -48,7 +55,7 @@
                 <div class="tr-cal-head__cell @(weekend ? "tr-cal-head__cell--weekend" : "")">@_weekdayHeaders[i]</div>
             }
         </div>
-        <div class="tr-cal-grid">
+        <div class="tr-cal-grid" @onpointerup="EndStroke" @onpointerleave="EndStroke">
             @foreach (var week in _grid.Weeks)
             {
                 @foreach (var day in week)
@@ -58,7 +65,8 @@
                             class="@DayClasses(day, marked)"
                             style="@DayVars(marked)"
                             aria-label="@DayLabel(day, marked)"
-                            @onclick="() => OnDayClick(day)">
+                            @onpointerdown="() => StartStroke(day)"
+                            @onpointerenter="() => ContinueStroke(day)">
                         <span class="tr-day__num">@day.Date.Day</span>
                         <span class="tr-day__mark">
                             @if (marked is not null)
@@ -86,7 +94,10 @@
     private static readonly string[] _weekdayHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
     private List<WorkLocation> _locations = [];
-    private int _activeLocationId;
+    private int? _activeLocationId;   // null = eraser
+    private bool _brushSelected;      // false = nothing chosen; distinguishes from eraser
+    private bool _painting;           // true while a pointer stroke is in progress
+    private List<WorkLocation> _allLocations = []; // includes archived, for rendering marks
     private int _year = DateTime.Today.Year;
     private int _month = DateTime.Today.Month;
     private MonthGrid _grid = MonthGridBuilder.Build(DateTime.Today.Year, DateTime.Today.Month);
@@ -96,8 +107,14 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _locations = [.. await Locations.GetAllAsync()];
-        _activeLocationId = _locations.Count > 0 ? _locations[0].Id : 0;
+        _allLocations = [.. await Locations.GetAllAsync(includeArchived: true)];
+        _locations = [.. _allLocations.Where(l => !l.IsArchived)];
+        if (_locations.Count > 0)
+        {
+            _activeLocationId = _locations[0].Id;
+            _brushSelected = true;
+        }
+
         await LoadMonthAsync();
     }
 
@@ -110,27 +127,63 @@
         _marks = entries.ToDictionary(e => e.Date, e => e.WorkLocationId);
     }
 
-    private void OnBrushChanged(int id) => _activeLocationId = id;
-
-    private async Task OnDayClick(CalendarDay day)
+    private void OnBrushChanged(int id)
     {
-        if (_activeLocationId == 0)
+        _activeLocationId = id;
+        _brushSelected = true;
+    }
+
+    private void OnEraserChosen()
+    {
+        _activeLocationId = null;
+        _brushSelected = true;
+    }
+
+    // A pointer press begins a stroke and applies the click (toggle) outcome to this day.
+    private async Task StartStroke(CalendarDay day)
+    {
+        if (!_brushSelected)
         {
             return;
         }
 
-        int? current = _marks.TryGetValue(day.Date, out var id) ? id : null;
-        var outcome = BrushResolver.Resolve(current, _activeLocationId);
+        _painting = true;
+        await ApplyOutcome(day.Date, BrushResolver.ResolveClick(CurrentMark(day.Date), _activeLocationId));
+    }
+
+    // A day entered while the pointer is down paints/erases without toggle semantics.
+    private async Task ContinueStroke(CalendarDay day)
+    {
+        if (!_painting || !_brushSelected)
+        {
+            return;
+        }
+
+        await ApplyOutcome(day.Date, BrushResolver.ResolveDrag(CurrentMark(day.Date), _activeLocationId));
+    }
+
+    private void EndStroke() => _painting = false;
+
+    private int? CurrentMark(DateOnly date) => _marks.TryGetValue(date, out var id) ? id : null;
+
+    private async Task ApplyOutcome(DateOnly date, BrushOutcome outcome)
+    {
+        if (outcome == BrushOutcome.NoOp)
+        {
+            return;
+        }
 
         if (outcome == BrushOutcome.Clear)
         {
-            await AttendanceStore.ClearAsync(day.Date);
-            _marks.Remove(day.Date);
+            await AttendanceStore.ClearAsync(date);
+            _marks.Remove(date);
             return;
         }
 
-        await AttendanceStore.SetAsync(day.Date, _activeLocationId);
-        _marks[day.Date] = _activeLocationId;
+        // Set: _activeLocationId is guaranteed non-null here (eraser only yields Clear/NoOp).
+        var locationId = _activeLocationId!.Value;
+        await AttendanceStore.SetAsync(date, locationId);
+        _marks[date] = locationId;
     }
 
     private async Task PrevMonth()
@@ -154,10 +207,12 @@
     }
 
     private WorkLocation? LocationFor(DateOnly date)
-        => _marks.TryGetValue(date, out var id) ? _locations.FirstOrDefault(l => l.Id == id) : null;
+        => _marks.TryGetValue(date, out var id) ? _allLocations.FirstOrDefault(l => l.Id == id) : null;
 
     private static string Initial(WorkLocation loc)
         => string.IsNullOrEmpty(loc.Name) ? "?" : loc.Name[..1].ToUpperInvariant();
+
+    private static string Pressed(bool value) => value.ToString().ToLowerInvariant();
 
     private string DayClasses(CalendarDay day, WorkLocation? marked)
     {
@@ -165,6 +220,10 @@
         if (marked is not null)
         {
             classes.Add("tr-day--marked");
+            if (marked.IsArchived)
+            {
+                classes.Add("tr-day--archived-mark");
+            }
         }
         if (day.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
         {
@@ -187,7 +246,12 @@
     private string DayLabel(CalendarDay day, WorkLocation? marked)
     {
         var date = day.Date.ToString("dddd d MMMM");
-        return marked is not null ? $"{date} — {marked.Name}" : $"{date} — unmarked";
+        if (marked is null)
+        {
+            return $"{date} — unmarked";
+        }
+
+        return marked.IsArchived ? $"{date} — {marked.Name} (archived)" : $"{date} — {marked.Name}";
     }
 
     // Pick a legible glyph colour for a bullet against an arbitrary line colour.
