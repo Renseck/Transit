@@ -7,4 +7,11 @@ public class WorkLocation
     public required string ColorHex { get; set; }
     public bool CountsAsTravel { get; set; }
     public bool IsDefaultForUnmarked { get; set; }
+
+    // Soft-delete flag. Archived locations leave the brush bar and
+    // active list but stay resolvable for existing marks and future run snapshots.
+    public bool IsArchived { get; set; }
+
+    // Brush-bar / list order. Lower sorts first; new locations append.
+    public int DisplayOrder { get; set; }
 }
