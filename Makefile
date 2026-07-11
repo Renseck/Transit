@@ -2,7 +2,7 @@ PUBLISH_DIR = C:\inetpub\wwwroot\Transit
 APPCMD      = C:\Windows\system32\inetsrv\appcmd.exe
 APPPOOL     = Transit
 
-SLN        = Transit.sln
+SLN        = Transit.slnx
 WEB_PROJ   = src/Transit.Web/Transit.Web.csproj
 INFRA_PROJ = src/Transit.Infrastructure/Transit.Infrastructure.csproj
 TEST_PROJ  = tests/Transit.Tests/Transit.Tests.csproj

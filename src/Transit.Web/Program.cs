@@ -1,4 +1,4 @@
-using Transit.Components;
+using Transit.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
