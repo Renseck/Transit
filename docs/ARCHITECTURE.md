@@ -195,15 +195,15 @@ certificate-based signature) is a possible future `IPdfConverter` decorator.
 ## 8. Storage layout
 
 ```
-App_Data/
-  app.db                                   # SQLite: attendance, locations, routes, config, runs
-  templates/{profileId}/template.xlsx      # uploaded employer template
-  generated/{yyyy-MM}/{runId}/
-    declaration.xlsx                        # filled template (unsigned)
-    declaration.pdf                         # converted (unsigned)
+C:\ProgramData\Transit\Data        # configurable via Transit:DataRoot (StorageOptions)
+  app.db                           # SQLite: attendance, locations, routes, config, runs
+  templates\{profileId}\template.xlsx
+  generated\{yyyy-MM}\{runId}\
+    declaration.xlsx
+    declaration.pdf
 ```
 
-The DB holds metadata and file paths; the files live on disk. Generation is **append-only**:
+The data root lives outside `inetpub` so a republish or reimage of the site does not touch attendance history. The IIS app-pool identity needs write ACL on this folder. The DB holds metadata and file paths; the files live on disk. Generation is **append-only**:
 re-running a month creates a new run and new artifacts; it never overwrites history.
 
 ## 9. Deployment & durability
@@ -258,3 +258,20 @@ records.
 Resolved since the first draft: capture mechanism (in-app), reachability (n/a),
 one-way-vs-round-trip (now outbound + return), missing-day handling (default to Home,
 editable), and template row model (travel days only).
+
+## 13. Build order
+
+The app is built in vertical slices, each its own spec → plan → implementation cycle and each
+producing working, testable software on its own. Specs live in `docs/superpowers/specs/`.
+
+1. **Foundation + minimal capture** *(current)* — four-project restructure, EF Core + SQLite at
+   `C:\ProgramData\Transit\`, MudBlazor, and a brush-model attendance calendar that persists
+   marks. The walking skeleton that exercises the whole stack end-to-end.
+2. **Attendance capture (full)** — `WorkLocation` CRUD (`LocationService` write side), brush
+   polish, and a design language established via `/frontend-design` (MudBlazor theme tokens)
+   that sets the visual vocabulary for every later page.
+3. **Routes + declaration review** — `Route` / `RouteService`, `DeclarationService`
+   (pull → default unmarked → km), and the editable review grid.
+4. **Template + Excel + PDF** — `TemplateProfile`, `IExcelWriter` (ClosedXML), `IPdfConverter`
+   (LibreOffice headless), and the template / config page.
+5. **History** — `DeclarationRun` persistence, the history page, and `.xlsx` / `.pdf` downloads.

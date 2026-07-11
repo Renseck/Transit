@@ -5,7 +5,7 @@ alongside this file — this is the operational how-to-work document; that is th
 
 ## Project
 
-Working name: **CommuteDeclare** (rename freely). A single Blazor web app that automates the
+Working name: Transit. A single Blazor web app that automates the
 monthly commute-kilometre (woon-werkverkeer) declaration. It captures per-day work location
 on an in-app calendar, lets the user assign a travel route per travel day, fills an employer
 Excel template, converts it to PDF, keeps a history, and offers downloads.
@@ -33,6 +33,7 @@ This project follows a constrained, inspect-before-build workflow:
 
 - **.NET 10 (LTS)**, C# latest.
 - **Blazor Web App**, `InteractiveServer` render mode.
+- **MudBlazor** for UI components; theme tokens defined via /frontend-design.
 - **EF Core + SQLite** for attendance and all metadata.
 - **ClosedXML** for reading/writing the Excel template.
 - **LibreOffice headless** (subprocess) behind `IPdfConverter` for xlsx → pdf.
@@ -44,13 +45,13 @@ Do not swap any of these without asking.
 ## Solution structure
 
 ```
-CommuteDeclare.sln
+Transit.slnx
   src/
-    CommuteDeclare.Core            # domain: entities, enums, interfaces, services, km logic
-    CommuteDeclare.Infrastructure  # EF Core, SQLite store, ClosedXML writer, LibreOffice, file store
-    CommuteDeclare.Web             # Blazor UI + composition root (DI, config)
+    Transit.Core            # domain: entities, enums, interfaces, services, km logic
+    Transit.Infrastructure  # EF Core, SQLite store, ClosedXML writer, LibreOffice, file store
+    Transit.Web             # Blazor UI + composition root (DI, config)
   tests/
-    CommuteDeclare.Tests           # xUnit
+    Transit.Tests           # xUnit
 ```
 
 **Dependency direction:** `Web → Infrastructure → Core`. `Core` depends on nothing but the
@@ -61,17 +62,17 @@ BCL — no EF, no ClosedXML. All I/O implementations live in `Infrastructure`.
 ```bash
 dotnet restore
 dotnet build
-dotnet run --project src/CommuteDeclare.Web
+dotnet run --project src/Transit.Web
 
 # EF Core migrations
-dotnet ef migrations add <Name> --project src/CommuteDeclare.Infrastructure --startup-project src/CommuteDeclare.Web
-dotnet ef database update            --project src/CommuteDeclare.Infrastructure --startup-project src/CommuteDeclare.Web
+dotnet ef migrations add <Name> --project src/Transit.Infrastructure --startup-project src/Transit.Web
+dotnet ef database update            --project src/Transit.Infrastructure --startup-project src/Transit.Web
 
 # tests
 dotnet test
 
 # publish for IIS
-dotnet publish src/CommuteDeclare.Web -c Release -o ./publish
+dotnet publish src/Transit.Web -c Release -o ./publish
 ```
 
 ## Conventions
@@ -123,7 +124,7 @@ filesystem, the database, or shells out goes behind one of these.
 - **Loopback only.** The site binds to `localhost:83`; do not add external bindings or a
   network API. (`IAttendanceStore` reads SQLite directly — no HTTP capture endpoint.)
 - **Dates:** watch for any implicit timezone conversion that could shift a day.
-- **Durability:** `App_Data` is the only copy of attendance history — never write code that
+- **Durability:** `C:\ProgramData\Transit\` is the only copy of attendance history — never write code that
   destructively rewrites it in place.
 
 ## Testing
