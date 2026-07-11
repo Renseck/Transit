@@ -1,0 +1,147 @@
+@page "/attendance"
+@rendermode InteractiveServer
+@using Transit.Core.Abstractions
+@using Transit.Core.Calendar
+@using Transit.Core.Entities
+@using Transit.Core.Services
+@inject LocationService Locations
+@inject IAttendanceStore AttendanceStore
+
+<PageTitle>Attendance</PageTitle>
+
+<MudStack Spacing="4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudText Typo="Typo.h5">@_monthLabel</MudText>
+        <MudButtonGroup Variant="Variant.Outlined">
+            <MudButton OnClick="PrevMonth">Prev</MudButton>
+            <MudButton OnClick="GoToday">Today</MudButton>
+            <MudButton OnClick="NextMonth">Next</MudButton>
+        </MudButtonGroup>
+    </MudStack>
+
+    <MudPaper Class="pa-3" Elevation="0" Outlined="true">
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Brush</MudText>
+        <MudChipSet T="int" SelectedValue="_activeLocationId" SelectedValueChanged="OnBrushChanged">
+            @foreach (var loc in _locations)
+            {
+                <MudChip T="int" Value="loc.Id" Style="@ChipStyle(loc)">@loc.Name</MudChip>
+            }
+        </MudChipSet>
+    </MudPaper>
+
+    <MudSimpleTable Dense="true" Bordered="true" Class="attendance-grid">
+        <thead>
+            <tr>
+                @foreach (var head in _weekdayHeaders)
+                {
+                    <th style="text-align:center">@head</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var week in _grid.Weeks)
+            {
+                <tr>
+                    @foreach (var day in week)
+                    {
+                        <td style="@DayStyle(day)" @onclick="() => OnDayClick(day)">
+                            <div style="text-align:center">@day.Date.Day</div>
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+
+    <MudAlert Severity="Severity.Info" Dense="true">
+        Unmarked weekdays are treated as the default location (Home) at generation time and can be
+        overridden later in the review grid.
+    </MudAlert>
+</MudStack>
+
+@code {
+    private static readonly string[] _weekdayHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+    private List<WorkLocation> _locations = [];
+    private int _activeLocationId;
+    private int _year = DateTime.Today.Year;
+    private int _month = DateTime.Today.Month;
+    private MonthGrid _grid = MonthGridBuilder.Build(DateTime.Today.Year, DateTime.Today.Month);
+    private Dictionary<DateOnly, int> _marks = [];
+
+    private string _monthLabel => new DateOnly(_year, _month, 1).ToString("MMMM yyyy");
+
+    protected override async Task OnInitializedAsync()
+    {
+        _locations = [.. await Locations.GetAllAsync()];
+        _activeLocationId = _locations.Count > 0 ? _locations[0].Id : 0;
+        await LoadMonthAsync();
+    }
+
+    private async Task LoadMonthAsync()
+    {
+        _grid = MonthGridBuilder.Build(_year, _month);
+        var from = _grid.Weeks[0][0].Date;
+        var to = _grid.Weeks[^1][^1].Date;
+        var entries = await AttendanceStore.GetRangeAsync(from, to);
+        _marks = entries.ToDictionary(e => e.Date, e => e.WorkLocationId);
+    }
+
+    private void OnBrushChanged(int id) => _activeLocationId = id;
+
+    private async Task OnDayClick(CalendarDay day)
+    {
+        if (_activeLocationId == 0)
+        {
+            return;
+        }
+
+        int? current = _marks.TryGetValue(day.Date, out var id) ? id : null;
+        var outcome = BrushResolver.Resolve(current, _activeLocationId);
+
+        if (outcome == BrushOutcome.Clear)
+        {
+            await AttendanceStore.ClearAsync(day.Date);
+            _marks.Remove(day.Date);
+            return;
+        }
+
+        await AttendanceStore.SetAsync(day.Date, _activeLocationId);
+        _marks[day.Date] = _activeLocationId;
+    }
+
+    private async Task PrevMonth()
+    {
+        var d = new DateOnly(_year, _month, 1).AddMonths(-1);
+        (_year, _month) = (d.Year, d.Month);
+        await LoadMonthAsync();
+    }
+
+    private async Task NextMonth()
+    {
+        var d = new DateOnly(_year, _month, 1).AddMonths(1);
+        (_year, _month) = (d.Year, d.Month);
+        await LoadMonthAsync();
+    }
+
+    private async Task GoToday()
+    {
+        (_year, _month) = (DateTime.Today.Year, DateTime.Today.Month);
+        await LoadMonthAsync();
+    }
+
+    private WorkLocation? LocationFor(DateOnly date)
+        => _marks.TryGetValue(date, out var id) ? _locations.FirstOrDefault(l => l.Id == id) : null;
+
+    private string ChipStyle(WorkLocation loc)
+        => $"border-left:6px solid {loc.ColorHex};";
+
+    private string DayStyle(CalendarDay day)
+    {
+        var marked = LocationFor(day.Date);
+        var background = marked is not null ? marked.ColorHex : "transparent";
+        var weekend = day.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+        var opacity = day.InCurrentMonth ? (weekend ? "0.85" : "1") : "0.35";
+        return $"cursor:pointer;background:{background};opacity:{opacity};height:56px;vertical-align:top;";
+    }
+}
