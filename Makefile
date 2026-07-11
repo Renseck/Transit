@@ -1,31 +1,38 @@
 PUBLISH_DIR = C:\inetpub\wwwroot\Transit
-APPCMD = C:\Windows\system32\inetsrv\appcmd.exe
+APPCMD      = C:\Windows\system32\inetsrv\appcmd.exe
+APPPOOL     = Transit
 
-TRANSIT_PROJ     	= src/Transit/Transit.csproj
-TRANSIT_TEST_PROJ   = tests/Transit.Tests/Transit.Tests.csproj
-USERMGR_PROJ 		= src/tools/UserManager/UserManager.csproj
+SLN        = Transit.sln
+WEB_PROJ   = src/Transit.Web/Transit.Web.csproj
+INFRA_PROJ = src/Transit.Infrastructure/Transit.Infrastructure.csproj
+TEST_PROJ  = tests/Transit.Tests/Transit.Tests.csproj
 
-.PHONY: build test run publish add-user fingerprint-cleanup-steps
+.PHONY: build test run publish publish-restart migrate db-update rebuild-test
 
 build:
-	dotnet build $(TRANSIT_PROJ)
+	dotnet build $(SLN)
 
 test:
-	dotnet test $(TRANSIT_TEST_PROJ)
+	dotnet test $(TEST_PROJ)
 
 run:
-	dotnet run --project $(TRANSIT_PROJ)
+	dotnet run --project $(WEB_PROJ)
 
 publish:
-	dotnet publish $(TRANSIT_PROJ) -c Release -o $(PUBLISH_DIR)
+	dotnet publish $(WEB_PROJ) -c Release -o $(PUBLISH_DIR)
 	@echo Done. Run 'iisreset' on the server to pick up changes.
 
 publish-restart:
-	@$(APPCMD) list apppool | rg "Transit" | rg -q "Stopped" || $(APPCMD) stop apppool /apppool.name:"Transit"
-	dotnet publish $(TRANSIT_PROJ) -c Release -o $(PUBLISH_DIR)
-	$(APPCMD) start apppool /apppool.name:"Transit"
+	@$(APPCMD) list apppool | rg "$(APPPOOL)" | rg -q "Stopped" || $(APPCMD) stop apppool /apppool.name:"$(APPPOOL)"
+	dotnet publish $(WEB_PROJ) -c Release -o $(PUBLISH_DIR)
+	$(APPCMD) start apppool /apppool.name:"$(APPPOOL)"
 
-add-user:
-	dotnet run --project $(USERMGR_PROJ)
+# EF Core migrations (schema is also auto-applied on app startup).
+# Usage: make migrate NAME=InitialCreate
+migrate:
+	dotnet ef migrations add $(NAME) --project $(INFRA_PROJ) --startup-project $(WEB_PROJ)
+
+db-update:
+	dotnet ef database update --project $(INFRA_PROJ) --startup-project $(WEB_PROJ)
 
 rebuild-test: build test
