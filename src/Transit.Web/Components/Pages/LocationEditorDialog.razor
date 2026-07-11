@@ -1,0 +1,80 @@
+@using Transit.Core.Entities
+@using Transit.Core.Locations
+
+<MudDialog>
+    <TitleContent>
+        <span class="tr-board__eyebrow">@(IsEdit ? "Edit line" : "Add line")</span>
+    </TitleContent>
+    <DialogContent>
+        <div class="tr-stack" style="gap:1rem;">
+            <MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" Immediate="true" />
+
+            <div>
+                <div class="tr-section-eyebrow">Line colour</div>
+                <div class="tr-swatch-set">
+                    @foreach (var c in LinePalette.All)
+                    {
+                        <button type="button"
+                                class="tr-swatch"
+                                style="--swatch-color:@c.Hex"
+                                title="@SwatchTitle(c)"
+                                aria-label="@SwatchTitle(c)"
+                                aria-pressed="@Pressed(c.Hex)"
+                                @onclick="() => _colorHex = c.Hex"></button>
+                    }
+                </div>
+            </div>
+
+            <MudSwitch @bind-Value="_countsAsTravel" Color="Color.Primary" Label="Counts as travel (appears on the declaration)" />
+
+            <MudSwitch @bind-Value="_makeDefault" Color="Color.Primary" Disabled="@_isCurrentDefault"
+                       Label="@(_isCurrentDefault ? "This is the default for unmarked days" : "Make default for unmarked days")" />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">@(IsEdit ? "Save" : "Add")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    // When editing, the existing location; null when adding.
+    [Parameter] public WorkLocation? Existing { get; set; }
+
+    private string _name = string.Empty;
+    private string _colorHex = LinePalette.All[0].Hex;
+    private bool _countsAsTravel;
+    private bool _makeDefault;
+    private bool _isCurrentDefault;
+
+    private bool IsEdit => Existing is not null;
+
+    protected override void OnInitialized()
+    {
+        if (Existing is null)
+        {
+            return;
+        }
+
+        _name = Existing.Name;
+        _colorHex = Existing.ColorHex;
+        _countsAsTravel = Existing.CountsAsTravel;
+        _isCurrentDefault = Existing.IsDefaultForUnmarked;
+        _makeDefault = Existing.IsDefaultForUnmarked;
+    }
+
+    private string Pressed(string hex)
+        => string.Equals(hex, _colorHex, StringComparison.OrdinalIgnoreCase).ToString().ToLowerInvariant();
+
+    private static string SwatchTitle(LineColor c) => c.Name;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Save()
+        => MudDialog.Close(DialogResult.Ok(new LocationEditResult(_name, _colorHex, _countsAsTravel, _makeDefault && !_isCurrentDefault)));
+
+    // Nested in the component's @code so it surfaces as LocationEditorDialog.LocationEditResult.
+    public sealed record LocationEditResult(string Name, string ColorHex, bool CountsAsTravel, bool MakeDefault);
+}

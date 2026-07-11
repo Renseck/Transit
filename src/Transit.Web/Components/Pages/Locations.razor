@@ -1,0 +1,204 @@
+@page "/locations"
+@rendermode InteractiveServer
+@using Transit.Core.Entities
+@using Transit.Core.Locations
+@using Transit.Core.Services
+@inject LocationService LocationService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Locations</PageTitle>
+
+<div class="tr-stack">
+    <header class="tr-board">
+        <div>
+            <div class="tr-board__eyebrow">Network</div>
+            <h1 class="tr-board__month">Locations</h1>
+        </div>
+        <nav class="tr-board__nav">
+            <button type="button" class="tr-ctrl tr-ctrl--now" @onclick="AddLine">+ Add line</button>
+        </nav>
+    </header>
+
+    <div class="tr-line-list">
+        @for (var i = 0; i < _active.Count; i++)
+        {
+            var index = i;
+            var loc = _active[index];
+            <div class="tr-line-row @(_dragOverIndex == index ? "tr-line-row--dragover" : "")"
+                 draggable="true"
+                 @ondragstart="() => OnDragStart(index)"
+                 @ondragover:preventDefault="true"
+                 @ondragover="() => OnDragOver(index)"
+                 @ondrop="() => OnDrop(index)">
+                <span class="tr-line-row__handle" title="Drag to reorder">⋮⋮</span>
+                <span class="tr-bullet @(loc.CountsAsTravel ? "" : "tr-bullet--outline")"
+                      style="--bullet-color:@loc.ColorHex;--bullet-fg:@ContrastText(loc.ColorHex)">@Initial(loc)</span>
+                <span class="tr-line-row__name">@loc.Name</span>
+                <span class="tr-tag">@(loc.CountsAsTravel ? "Travel" : "Off-network")</span>
+                @if (loc.IsDefaultForUnmarked)
+                {
+                    <span class="tr-tag tr-chip--default">Default</span>
+                }
+                <span class="tr-line-row__spacer"></span>
+                <span class="tr-line-row__actions">
+                    @if (!loc.IsDefaultForUnmarked)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Star" Size="Size.Small"
+                                       Title="Make default" OnClick="() => MakeDefault(loc.Id)" />
+                    }
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   Title="Edit" OnClick="() => EditLine(loc)" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Archive" Size="Size.Small"
+                                   Title="Archive" OnClick="() => Archive(loc.Id)" />
+                </span>
+            </div>
+        }
+    </div>
+
+    @if (_archived.Count > 0)
+    {
+        <div>
+            <div class="tr-section-eyebrow">Archived</div>
+            <div class="tr-line-list">
+                @foreach (var loc in _archived)
+                {
+                    <div class="tr-line-row tr-line-row--archived">
+                        <span class="tr-bullet @(loc.CountsAsTravel ? "" : "tr-bullet--outline")"
+                              style="--bullet-color:@loc.ColorHex;--bullet-fg:@ContrastText(loc.ColorHex)">@Initial(loc)</span>
+                        <span class="tr-line-row__name">@loc.Name</span>
+                        <span class="tr-line-row__spacer"></span>
+                        <MudIconButton Icon="@Icons.Material.Filled.Unarchive" Size="Size.Small"
+                                       Title="Unarchive" OnClick="() => Unarchive(loc.Id)" />
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<WorkLocation> _active = [];
+    private List<WorkLocation> _archived = [];
+    private int? _dragIndex;
+    private int? _dragOverIndex;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        var all = await LocationService.GetAllAsync(includeArchived: true);
+        _active = [.. all.Where(l => !l.IsArchived)];
+        _archived = [.. all.Where(l => l.IsArchived)];
+    }
+
+    private async Task RunGuarded(Func<Task> action)
+    {
+        try
+        {
+            await action();
+            await ReloadAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task AddLine()
+    {
+        var dialog = await DialogService.ShowAsync<LocationEditorDialog>("Add line");
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not LocationEditorDialog.LocationEditResult r)
+        {
+            return;
+        }
+
+        await RunGuarded(async () =>
+        {
+            var created = await LocationService.CreateAsync(r.Name, r.ColorHex, r.CountsAsTravel);
+            if (r.MakeDefault)
+            {
+                await LocationService.SetDefaultAsync(created.Id);
+            }
+        });
+    }
+
+    private async Task EditLine(WorkLocation loc)
+    {
+        var parameters = new DialogParameters<LocationEditorDialog> { { x => x.Existing, loc } };
+        var dialog = await DialogService.ShowAsync<LocationEditorDialog>("Edit line", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not LocationEditorDialog.LocationEditResult r)
+        {
+            return;
+        }
+
+        await RunGuarded(async () =>
+        {
+            await LocationService.UpdateAsync(loc.Id, r.Name, r.ColorHex, r.CountsAsTravel);
+            if (r.MakeDefault)
+            {
+                await LocationService.SetDefaultAsync(loc.Id);
+            }
+        });
+    }
+
+    private Task MakeDefault(int id) => RunGuarded(() => LocationService.SetDefaultAsync(id));
+    private Task Archive(int id) => RunGuarded(() => LocationService.ArchiveAsync(id));
+    private Task Unarchive(int id) => RunGuarded(() => LocationService.UnarchiveAsync(id));
+
+    private void OnDragStart(int index)
+    {
+        _dragIndex = index;
+        _dragOverIndex = index;
+    }
+
+    private void OnDragOver(int index) => _dragOverIndex = index;
+
+    private async Task OnDrop(int index)
+    {
+        var from = _dragIndex;
+        _dragIndex = null;
+        _dragOverIndex = null;
+        if (from is null || from == index)
+        {
+            return;
+        }
+
+        var moved = _active[from.Value];
+        _active.RemoveAt(from.Value);
+        _active.Insert(index, moved);
+
+        await RunGuarded(() => LocationService.ReorderAsync([.. _active.Select(l => l.Id)]));
+    }
+
+    private static string Initial(WorkLocation loc)
+        => string.IsNullOrEmpty(loc.Name) ? "?" : loc.Name[..1].ToUpperInvariant();
+
+    // Pick a legible glyph colour for a bullet against an arbitrary line colour.
+    private static string ContrastText(string hex)
+    {
+        if (!TryParseHex(hex, out var r, out var g, out var b))
+        {
+            return "#FFFFFF";
+        }
+
+        var luminance = ((0.299 * r) + (0.587 * g) + (0.114 * b)) / 255.0;
+        return luminance > 0.6 ? "#1A1F2B" : "#FFFFFF";
+    }
+
+    private static bool TryParseHex(string hex, out int r, out int g, out int b)
+    {
+        r = g = b = 0;
+        var value = hex.TrimStart('#');
+        if (value.Length != 6)
+        {
+            return false;
+        }
+
+        return int.TryParse(value.AsSpan(0, 2), System.Globalization.NumberStyles.HexNumber, null, out r)
+            && int.TryParse(value.AsSpan(2, 2), System.Globalization.NumberStyles.HexNumber, null, out g)
+            && int.TryParse(value.AsSpan(4, 2), System.Globalization.NumberStyles.HexNumber, null, out b);
+    }
+}
