@@ -376,3 +376,154 @@
         transition: none;
     }
 }
+
+/* ── Line palette (reference) ────────────────────────────────────────────────
+   Mirror of Transit.Core Locations/LinePalette.cs — the canonical list lives in
+   C# (it validates stored colours). These are documentation/reference tokens so
+   the palette is visible in one place in the design language. Change one, change
+   the other (third dual-source pair, alongside tokens.css ↔ TransitTheme.cs).   */
+:root {
+    --tr-line-coral:  #E4572E;
+    --tr-line-rose:   #E64980;
+    --tr-line-violet: #7048E8;
+    --tr-line-indigo: #3B5BDB;
+    --tr-line-azure:  #1C7ED6;
+    --tr-line-teal:   #099268;
+    --tr-line-green:  #2F9E44;
+    --tr-line-lime:   #5C940D;
+    --tr-line-clay:   #B25B34;
+    --tr-line-slate:  #4C566A;
+}
+
+/* ── Eraser brush ────────────────────────────────────────────────────────────
+   A brush with no line colour. Neutral hollow token with a strike glyph.        */
+.tr-bullet--erase {
+    background: transparent;
+    color: var(--tr-muted);
+    box-shadow: inset 0 0 0 2px var(--tr-rail-strong);
+}
+
+.tr-brush--erase[aria-pressed="true"] {
+    background: color-mix(in srgb, var(--tr-muted) 8%, var(--tr-surface));
+    border-color: var(--tr-rail-strong);
+    box-shadow: inset 0 0 0 1px var(--tr-rail-strong);
+}
+
+/* ── Palette swatches (location editor) ─────────────────────────────────────── */
+.tr-swatch-set {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.tr-swatch {
+    --_c: var(--swatch-color, var(--tr-muted));
+    width: var(--tr-bullet-size);
+    height: var(--tr-bullet-size);
+    flex: none;
+    border-radius: 50%;
+    background: var(--_c);
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    box-shadow: inset 0 0 0 2px var(--tr-surface), 0 0 0 1px var(--tr-rail);
+    transition: box-shadow 0.12s ease, transform 0.05s ease;
+}
+
+.tr-swatch:hover {
+    transform: translateY(-1px);
+}
+
+.tr-swatch[aria-pressed="true"] {
+    box-shadow: inset 0 0 0 2px var(--tr-surface), 0 0 0 2px var(--_c);
+}
+
+.tr-swatch:focus-visible {
+    outline: 2px solid var(--tr-signal);
+    outline-offset: 2px;
+}
+
+/* ── Location line list (/locations page) ───────────────────────────────────── */
+.tr-line-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.tr-line-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--tr-surface);
+    border: 1px solid var(--tr-rail);
+    border-radius: var(--tr-radius-sm);
+}
+
+.tr-line-row.tr-line-row--dragover {
+    border-color: var(--tr-signal);
+    box-shadow: inset 0 0 0 1px var(--tr-signal);
+}
+
+.tr-line-row--archived {
+    opacity: 0.6;
+}
+
+.tr-line-row__handle {
+    cursor: grab;
+    color: var(--tr-muted);
+    font-family: var(--tr-font-mono);
+    user-select: none;
+    line-height: 1;
+}
+
+.tr-line-row__name {
+    font-family: var(--tr-font-body);
+    font-size: 0.95rem;
+    color: var(--tr-text);
+}
+
+.tr-line-row__spacer {
+    flex: 1;
+}
+
+.tr-line-row__actions {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+}
+
+/* ── Tags & chips ───────────────────────────────────────────────────────────── */
+.tr-tag {
+    font-family: var(--tr-font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--tr-muted);
+    padding: 0.15rem 0.45rem;
+    border: 1px solid var(--tr-rail);
+    border-radius: 999px;
+    line-height: 1;
+}
+
+.tr-chip--default {
+    color: var(--tr-signal-ink);
+    background: var(--tr-signal);
+    border-color: var(--tr-signal);
+}
+
+/* ── Archived attendance mark (calendar) ────────────────────────────────────── */
+.tr-day--archived-mark .tr-bullet {
+    opacity: 0.45;
+    filter: saturate(0.6);
+}
+
+/* ── Section eyebrow (reused on /locations) ─────────────────────────────────── */
+.tr-section-eyebrow {
+    font-family: var(--tr-font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--tr-muted);
+    margin: 0.5rem 0 0.25rem;
+}
