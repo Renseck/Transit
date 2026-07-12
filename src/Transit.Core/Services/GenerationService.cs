@@ -1,5 +1,6 @@
 using Transit.Core.Abstractions;
 using Transit.Core.Declarations;
+using Transit.Core.Entities;
 
 namespace Transit.Core.Services;
 
@@ -35,10 +36,34 @@ public sealed class GenerationService
         await using var templateBytes = await _profiles.OpenTemplateAsync(profile.Id, ct);
         var xlsx = await _writer.FillAsync(profile, templateBytes, draft, ct);
 
-        var stem = $"declaration-{year:D4}-{month:D2}";
+        var stem = BuildFileStem(profile, year, month);
         var pdf = await TryConvertAsync(xlsx, ct);
 
         return new GeneratedDeclaration(xlsx, pdf, $"{stem}.xlsx", $"{stem}.pdf");
+    }
+
+    // e.g. "declaration-RvE-2026-07"; drops the initials segment when no employee name is mapped.
+    private static string BuildFileStem(TemplateProfile profile, int year, int month)
+    {
+        var initials = DeriveInitials(profile);
+        var period = $"{year:D4}-{month:D2}";
+        return initials is null ? $"declaration-{period}" : $"declaration-{initials}-{period}";
+    }
+
+    // Initials from the configured employee-name header cell: "Rens van Eck" -> "RvE".
+    private static string? DeriveInitials(TemplateProfile profile)
+    {
+        var name = profile.CellMappings
+            .FirstOrDefault(c => c.Source == TemplateCellSource.EmployeeName && !string.IsNullOrWhiteSpace(c.Value))
+            ?.Value;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        var initials = string.Concat(
+            name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(word => word[0]));
+        return initials.Length == 0 ? null : initials;
     }
 
     private async Task<byte[]?> TryConvertAsync(byte[] xlsx, CancellationToken ct)

@@ -715,3 +715,67 @@
     box-shadow: inset 0 0 0 2px var(--tr-signal);
     background: color-mix(in srgb, var(--tr-signal) 14%, var(--tr-surface));
 }
+
+/* Mapping rows — a shared grid so every field lines up in fixed columns (field · ref ·
+   value/format · remove), with one mono header row instead of per-field labels. */
+.tr-map-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.tr-map-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 5rem minmax(0, 1fr) 2.5rem;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.tr-map-row__head {
+    font-family: var(--tr-font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--tr-muted);
+    padding: 0 0.15rem;
+}
+
+/* Add-mapping affordance — legible on the light config page (the board's .tr-ctrl is
+   light-on-dark and disappears here). Dashed to read as "add a row". */
+.tr-map-add {
+    justify-self: start;
+    font-family: var(--tr-font-mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--tr-text);
+    background: var(--tr-surface);
+    border: 1px dashed var(--tr-rail-strong);
+    border-radius: var(--tr-radius-sm);
+    padding: 0.45rem 0.8rem;
+    cursor: pointer;
+    transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.tr-map-add:hover {
+    border-color: var(--tr-signal);
+    color: var(--tr-signal-ink);
+    background: color-mix(in srgb, var(--tr-signal) 12%, var(--tr-surface));
+}
+
+.tr-map-add:focus-visible {
+    outline: 2px solid var(--tr-signal);
+    outline-offset: 2px;
+}
+
+/* A board control placed on a light surface: dark ink text + rail border instead of the
+   light-on-dark default (used for secondary actions like "Set active"). */
+.tr-ctrl--line {
+    color: var(--tr-text);
+    border-color: var(--tr-rail-strong);
+}
+
+.tr-ctrl--line:hover {
+    background: color-mix(in srgb, var(--tr-ink) 6%, var(--tr-surface));
+    border-color: var(--tr-ink);
+}

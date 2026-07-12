@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Transit.Infrastructure.Configuration;
 using Transit.Infrastructure.Pdf;
@@ -25,7 +26,7 @@ public class LibreOfficePdfConverterTests
     {
         Skip.IfNot(File.Exists(Options.SofficePath), "LibreOffice not installed on this machine.");
 
-        var converter = new LibreOfficePdfConverter(OptionsWrapper());
+        var converter = new LibreOfficePdfConverter(OptionsWrapper(), NullLogger<LibreOfficePdfConverter>.Instance);
         var pdf = await converter.ConvertToPdfAsync(TinyXlsx());
 
         Assert.NotEmpty(pdf);

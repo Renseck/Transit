@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Transit.Core.Abstractions;
 using Transit.Infrastructure.Configuration;
@@ -7,13 +8,21 @@ namespace Transit.Infrastructure.Pdf;
 
 /// <summary>
 /// Converts .xlsx to .pdf by shelling out to LibreOffice headless. Writes the input to a private
-/// temp directory, runs `soffice --headless --convert-to pdf`, reads the result, and cleans up.
+/// temp directory, runs `soffice --headless --convert-to pdf` with a per-conversion user profile
+/// (so it never contends with another LibreOffice instance's lock and works under an IIS app-pool
+/// identity with no roaming profile), reads the result, and cleans up.
 /// </summary>
 public sealed class LibreOfficePdfConverter : IPdfConverter
 {
     private readonly PdfConverterOptions _options;
+    private readonly ILogger<LibreOfficePdfConverter> _logger;
 
-    public LibreOfficePdfConverter(IOptions<PdfConverterOptions> options) => _options = options.Value;
+    public LibreOfficePdfConverter(
+        IOptions<PdfConverterOptions> options, ILogger<LibreOfficePdfConverter> logger)
+    {
+        _options = options.Value;
+        _logger = logger;
+    }
 
     public async Task<byte[]> ConvertToPdfAsync(byte[] xlsxBytes, CancellationToken ct = default)
     {
@@ -51,6 +60,10 @@ public sealed class LibreOfficePdfConverter : IPdfConverter
 
     private async Task RunSofficeAsync(string inputPath, string workDir, CancellationToken ct)
     {
+        // Per-conversion profile: isolates this headless run from any other LibreOffice instance's
+        // lock and gives it a writable profile even when the host account has no roaming profile.
+        var profileUri = "file:///" + Path.Combine(workDir, "profile").Replace('\\', '/');
+
         var psi = new ProcessStartInfo
         {
             FileName = _options.SofficePath,
@@ -59,6 +72,7 @@ public sealed class LibreOfficePdfConverter : IPdfConverter
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        psi.ArgumentList.Add($"-env:UserInstallation={profileUri}");
         psi.ArgumentList.Add("--headless");
         psi.ArgumentList.Add("--convert-to");
         psi.ArgumentList.Add("pdf");
@@ -67,7 +81,13 @@ public sealed class LibreOfficePdfConverter : IPdfConverter
         psi.ArgumentList.Add(inputPath);
 
         using var process = new Process { StartInfo = psi };
+        var sw = Stopwatch.StartNew();
         process.Start();
+
+        // Drain both pipes concurrently *before* awaiting exit — an undrained redirected pipe that
+        // fills its OS buffer would block soffice from exiting and deadlock the wait.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+        var stderrTask = process.StandardError.ReadToEndAsync(ct);
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(_options.TimeoutSeconds));
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
@@ -78,13 +98,23 @@ public sealed class LibreOfficePdfConverter : IPdfConverter
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
             TryKill(process);
+            _logger.LogError(
+                "LibreOffice conversion timed out after {Timeout}s (soffice: {Path}).",
+                _options.TimeoutSeconds, _options.SofficePath);
             throw new TimeoutException($"LibreOffice conversion exceeded {_options.TimeoutSeconds}s.");
         }
 
+        var stdout = (await stdoutTask).Trim();
+        var stderr = (await stderrTask).Trim();
+        sw.Stop();
+
+        _logger.LogInformation(
+            "LibreOffice convert-to-pdf exited {ExitCode} in {Elapsed}ms. stdout=[{StdOut}] stderr=[{StdErr}]",
+            process.ExitCode, sw.ElapsedMilliseconds, stdout, stderr);
+
         if (process.ExitCode != 0)
         {
-            var error = await process.StandardError.ReadToEndAsync(ct);
-            throw new InvalidOperationException($"LibreOffice failed (exit {process.ExitCode}): {error}");
+            throw new InvalidOperationException($"LibreOffice failed (exit {process.ExitCode}): {stderr}");
         }
     }
 

@@ -47,44 +47,60 @@
                 </div>
 
                 <div class="tr-section-eyebrow">Columns</div>
-                @foreach (var col in _columns)
-                {
-                    <div style="display:flex; gap:0.5rem; align-items:center;">
-                        <MudSelect T="TemplateColumnField" @bind-Value="col.Field" Label="Field" Variant="Variant.Outlined" Dense="true">
-                            @foreach (var f in Enum.GetValues<TemplateColumnField>())
-                            {
-                                <MudSelectItem T="TemplateColumnField" Value="f">@f</MudSelectItem>
-                            }
-                        </MudSelect>
-                        <MudTextField @bind-Value="col.Column" Label="Col" Variant="Variant.Outlined" Style="max-width:5rem;" />
-                        <MudTextField @bind-Value="col.Format" Label="Format" Variant="Variant.Outlined" Style="max-width:9rem;" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" title="Remove" OnClick="() => _columns.Remove(col)" />
+                <div class="tr-map-rows">
+                    <div class="tr-map-row">
+                        <span class="tr-map-row__head">Field</span>
+                        <span class="tr-map-row__head">Col</span>
+                        <span class="tr-map-row__head">Format</span>
+                        <span></span>
                     </div>
-                }
-                <button type="button" class="tr-ctrl" @onclick="AddColumn">+ Column mapping</button>
+                    @foreach (var col in _columns)
+                    {
+                        <div class="tr-map-row">
+                            <MudSelect T="TemplateColumnField" @bind-Value="col.Field" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                                @foreach (var f in Enum.GetValues<TemplateColumnField>())
+                                {
+                                    <MudSelectItem T="TemplateColumnField" Value="f">@f</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudTextField @bind-Value="col.Column" Placeholder="A" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <MudTextField @bind-Value="col.Format" Placeholder="0.0" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" title="Remove" OnClick="() => _columns.Remove(col)" />
+                        </div>
+                    }
+                </div>
+                <button type="button" class="tr-map-add" @onclick="AddColumn">+ Column mapping</button>
 
                 <div class="tr-section-eyebrow">Header cells</div>
-                @foreach (var cell in _cells)
-                {
-                    <div style="display:flex; gap:0.5rem; align-items:center;">
-                        <MudSelect T="TemplateCellSource" @bind-Value="cell.Source" Label="Source" Variant="Variant.Outlined" Dense="true">
-                            @foreach (var s in Enum.GetValues<TemplateCellSource>())
-                            {
-                                <MudSelectItem T="TemplateCellSource" Value="s">@s</MudSelectItem>
-                            }
-                        </MudSelect>
-                        <MudTextField @bind-Value="cell.CellRef" Label="Cell" Variant="Variant.Outlined" Style="max-width:5rem;" />
-                        <MudTextField @bind-Value="cell.Value" Label="Value" Variant="Variant.Outlined" Style="max-width:11rem;" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" title="Remove" OnClick="() => _cells.Remove(cell)" />
+                <div class="tr-map-rows">
+                    <div class="tr-map-row">
+                        <span class="tr-map-row__head">Source</span>
+                        <span class="tr-map-row__head">Cell</span>
+                        <span class="tr-map-row__head">Value</span>
+                        <span></span>
                     </div>
-                }
-                <button type="button" class="tr-ctrl" @onclick="AddCell">+ Cell mapping</button>
+                    @foreach (var cell in _cells)
+                    {
+                        <div class="tr-map-row">
+                            <MudSelect T="TemplateCellSource" @bind-Value="cell.Source" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                                @foreach (var s in Enum.GetValues<TemplateCellSource>())
+                                {
+                                    <MudSelectItem T="TemplateCellSource" Value="s">@s</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudTextField @bind-Value="cell.CellRef" Placeholder="C5" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <MudTextField @bind-Value="cell.Value" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" title="Remove" OnClick="() => _cells.Remove(cell)" />
+                        </div>
+                    }
+                </div>
+                <button type="button" class="tr-map-add" @onclick="AddCell">+ Cell mapping</button>
 
                 <div class="tr-board__nav" style="margin-top:0.5rem;">
                     <button type="button" class="tr-ctrl tr-ctrl--now" @onclick="SaveMappings">Save</button>
                     @if (!_profile.IsActive)
                     {
-                        <button type="button" class="tr-ctrl" @onclick="SetActive">Set active</button>
+                        <button type="button" class="tr-ctrl tr-ctrl--line" @onclick="SetActive">Set active</button>
                     }
                     else
                     {
