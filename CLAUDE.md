@@ -92,7 +92,8 @@ dotnet publish src/Transit.Web -c Release -o ./publish
 ## Key seams — do not bypass
 
 ```
-IAttendanceStore       // read a date range; set/clear a day's location   (SqliteAttendanceStore)
+IAttendanceStore       // read a date range; set/clear a day's location    (SqliteAttendanceStore)
+IRouteStore            // route CRUD + per-destination default swap        (SqliteRouteStore)
 IExcelWriter           // fill the template from a TemplateProfile         (ClosedXmlTemplateWriter)
 IPdfConverter          // xlsx -> pdf                                      (LibreOfficePdfConverter)
 ITemplateProfileStore  // persist template file + mappings, select active
@@ -108,6 +109,10 @@ filesystem, the database, or shells out goes behind one of these.
   `CountsAsTravel` and there is exactly one `IsDefaultForUnmarked` (Home).
 - **Km:** travel day → route `TotalKm` = `OutboundKm + ReturnKm` (outbound and return differ
   and are stored separately); non-travel day → `0`.
+- **Routes are directed between-location pairs** (`FromLocationId` → `ToLocationId`) with separate
+  `OutboundKm` / `ReturnKm` legs and a **per-destination** default. `RouteService` owns the rules
+  over pure `RouteRules`; the pure `DeclarationBuilder` materialises the review grid (pull → default
+  unmarked → resolve route by destination → km). The `/declaration` and `/routes` pages surface them.
 - **Unmarked weekdays default to the `IsDefaultForUnmarked` location**, materialised as
   editable rows in the review grid. Nothing is silently zeroed.
 - **Only `CountsAsTravel` rows are written to the sheet.** WFH/absent days never appear.

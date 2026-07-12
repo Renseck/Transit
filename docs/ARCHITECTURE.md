@@ -119,8 +119,11 @@ WorkLocation
   IsDefaultForUnmarked (bool)     // exactly one; Home
 
 Route
-  Id, Name, OutboundKm (decimal), ReturnKm (decimal), IsDefault (bool)
-  TotalKm => OutboundKm + ReturnKm        // handles home->office vs office->home asymmetry
+  Id, Name
+  FromLocationId  ->  ToLocationId              // directed connection between two locations
+  OutboundKm (decimal), ReturnKm (decimal)      // From->To and To->From legs, stored separately
+  IsDefault (bool)                              // the default among routes sharing this ToLocationId
+  TotalKm => OutboundKm + ReturnKm              // handles home->office vs office->home asymmetry
 
 AttendanceEntry                   // one per explicitly-marked date; system of record
   Date (DateOnly), WorkLocationId
@@ -153,6 +156,16 @@ DeclarationRow
 **Km rule:** travel day (`CountsAsTravel`) → chosen route's `TotalKm`
 (`OutboundKm + ReturnKm`); non-travel day → `0`. Monthly totals are **not** computed here —
 the template's own `SUM` formula owns them.
+
+**Route resolution:** a travel day is marked with one location; its route is pre-selected by
+matching routes whose `ToLocationId` equals that location (origin is implicitly the
+`IsDefaultForUnmarked` location), choosing the destination's default. A travel day whose location
+has no matching route is shown flagged with km `0`, never silently zeroed. Route selection in the
+review grid is editable and, until a run is generated (slice 4), in-memory only.
+
+**Declaration compute:** a pure `DeclarationBuilder` (Core, no I/O) materialises the rows, defaults
+unmarked days, resolves routes, and computes km; a thin `DeclarationService` loads attendance,
+locations (incl. archived), and routes, then delegates to it.
 
 **Row generation & defaulting:** the review grid materialises every weekday of the period,
 plus any explicitly-marked weekend day. Dates with an `AttendanceEntry` use it; unmarked
@@ -226,6 +239,9 @@ records.
 | Capture | In-app calendar page | No Tailscale/HA available; app is already always-local | HA + external store over Tailscale (rejected: unreachable) |
 | Store | Local SQLite, behind `IAttendanceStore` | Single self-contained system of record | External microservice / calendar |
 | Locations | User-defined `WorkLocation` entity | Arbitrary locations (home, office, sites) | Fixed Office/WFH enum |
+| Routes | Directed between-location pairs, per-destination default | Future-proofs multiple destinations; asymmetric legs | Global route list (rejected: single-office only); route per location (rejected: no asymmetric named endpoints) |
+| Route delete | Hard delete (with confirm) | No inbound persistent reference; run snapshots freeze RouteName | Archive (rejected: needless machinery) |
+| Declaration | Pure `DeclarationBuilder` + thin `DeclarationService` | Km/defaulting stays pure and unit-tested | Service does everything (rejected: entangles I/O with logic) |
 | Declaration UI | Blazor Server (`InteractiveServer`) | Server-side file/lib access; no client API | Blazor WASM; MVC |
 | Metadata store | SQLite + EF Core | Single-user, file-based, zero-admin | LiteDB; JSON files |
 | Excel | ClosedXML, write into template | Preserves formatting/formulas | OpenXML SDK (fallback) |
@@ -245,9 +261,10 @@ records.
 
 ## 12. Open questions / to confirm
 
-1. **Routes are currently global** — any travel day can pick any route. This assumes a single
-   office. If multiple travel destinations at different distances appear, routes may need to
-   attach to a location. Confirm the single-office assumption.
+1. ~~**Routes are currently global.**~~ **Resolved:** routes are directed connections between two
+   locations (`FromLocationId` → `ToLocationId`) with asymmetric legs and a per-destination
+   default. This future-proofs multiple travel destinations without a schema change; the single
+   office today is simply the one destination that has a route.
 2. **Km column layout** — does the employer template want the day's *total* km in one column,
    or the outbound/return legs split across two? Fields exist for both; needs the real sheet.
 3. **Personal header fields** — which static fields does the template need (name, personnel
@@ -257,7 +274,8 @@ records.
 
 Resolved since the first draft: capture mechanism (in-app), reachability (n/a),
 one-way-vs-round-trip (now outbound + return), missing-day handling (default to Home,
-editable), and template row model (travel days only).
+editable), and template row model (travel days only), and the routes model (directed
+between-location pairs, per-destination default).
 
 ## 13. Build order
 
