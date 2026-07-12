@@ -32,6 +32,63 @@ namespace Transit.Infrastructure.Migrations
                     b.ToTable("AttendanceEntries");
                 });
 
+            modelBuilder.Entity("Transit.Core.Entities.CellMapping", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CellRef")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Format")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TemplateProfileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Value")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TemplateProfileId");
+
+                    b.ToTable("CellMapping");
+                });
+
+            modelBuilder.Entity("Transit.Core.Entities.ColumnMapping", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Column")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Field")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Format")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TemplateProfileId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TemplateProfileId");
+
+                    b.ToTable("ColumnMapping");
+                });
+
             modelBuilder.Entity("Transit.Core.Entities.Route", b =>
                 {
                     b.Property<int>("Id")
@@ -64,6 +121,41 @@ namespace Transit.Infrastructure.Migrations
                     b.HasIndex("ToLocationId");
 
                     b.ToTable("Routes");
+                });
+
+            modelBuilder.Entity("Transit.Core.Entities.TemplateProfile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DataRowCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DataStartRow")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SheetSelector")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TemplateFilePath")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TemplateProfiles");
                 });
 
             modelBuilder.Entity("Transit.Core.Entities.WorkLocation", b =>
@@ -109,6 +201,24 @@ namespace Transit.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Transit.Core.Entities.CellMapping", b =>
+                {
+                    b.HasOne("Transit.Core.Entities.TemplateProfile", null)
+                        .WithMany("CellMappings")
+                        .HasForeignKey("TemplateProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Transit.Core.Entities.ColumnMapping", b =>
+                {
+                    b.HasOne("Transit.Core.Entities.TemplateProfile", null)
+                        .WithMany("ColumnMappings")
+                        .HasForeignKey("TemplateProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Transit.Core.Entities.Route", b =>
                 {
                     b.HasOne("Transit.Core.Entities.WorkLocation", null)
@@ -122,6 +232,13 @@ namespace Transit.Infrastructure.Migrations
                         .HasForeignKey("ToLocationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Transit.Core.Entities.TemplateProfile", b =>
+                {
+                    b.Navigation("CellMappings");
+
+                    b.Navigation("ColumnMappings");
                 });
 #pragma warning restore 612, 618
         }
