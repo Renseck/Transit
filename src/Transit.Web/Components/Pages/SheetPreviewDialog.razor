@@ -1,0 +1,84 @@
+@using Transit.Core.Abstractions
+@using Transit.Core.Declarations
+@using Transit.Core.Services
+@inject DeclarationHistoryService HistoryService
+@inject ISheetPreviewReader SheetReader
+
+<MudDialog>
+    <TitleContent>
+        <span class="tr-board__eyebrow">@Title</span>
+    </TitleContent>
+    <DialogContent>
+        @if (_error is not null)
+        {
+            <p class="tr-note">
+                <span class="tr-note__key">Unavailable</span>
+                <span>@_error</span>
+            </p>
+        }
+        else if (_grid is null)
+        {
+            <p class="tr-note">
+                <span class="tr-note__key">Loading</span>
+                <span>Rendering the sheet…</span>
+            </p>
+        }
+        else
+        {
+            <div class="tr-sheet-preview tr-sheet-preview--modal">
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            @foreach (var letter in _grid.ColumnLetters)
+                            {
+                                <th>@letter</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var r = 0; r < _grid.Rows.Count; r++)
+                        {
+                            var rowNum = r + 1;
+                            <tr>
+                                <th>@rowNum</th>
+                                @foreach (var cell in _grid.Rows[r])
+                                {
+                                    <td>@cell</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public int RunId { get; set; }
+    [Parameter] public string Title { get; set; } = "Declaration";
+
+    private SheetGrid? _grid;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var bytes = await HistoryService.OpenArtifactAsync(RunId, ArtifactKind.Xlsx);
+            _grid = await SheetReader.ReadAsync(new MemoryStream(bytes), sheetSelector: null);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void Close() => MudDialog.Close();
+}
