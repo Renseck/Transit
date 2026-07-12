@@ -90,7 +90,10 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
   unmarked flags) and over routes (with outbound/return km and a default).
 - **Template / config page** — upload the employer template; map fields to columns and static
   header cells; set the active profile.
-- **History page** — list past runs; download the `.xlsx` or `.pdf` of each.
+- **History page** — list past runs; download the `.xlsx` or `.pdf` of each; click a run to preview
+  its filled sheet, read-only, in a modal (rendered via `ISheetPreviewReader`).
+- **Overview page (home)** — a status dashboard + launchpad: this month's capture counts, a nudge to
+  declare the previous month, a location breakdown, recent runs with downloads, and setup health.
 
 ### Services
 
@@ -103,6 +106,8 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
 - `ITemplateProfileStore` — persist template file + mappings; select active.
 - `IArtifactStore` → `FileSystemArtifactStore` — write/read/delete generated files under
   `generated\{yyyy-MM}\{runId}\`; hand back paths.
+- `ISheetPreviewReader` → `ClosedXmlSheetPreviewReader` — read a sheet's used range into display
+  strings (evaluating formulas) for the read-only history preview.
 - `IDeclarationRunStore` → `SqliteDeclarationRunStore` — run metadata + frozen rows (DB only).
 - `DeclarationHistoryService` — owns the run+artifact lifecycle (save, list, open, delete),
   coordinating the two stores above.
@@ -336,6 +341,10 @@ producing working, testable software on its own. Specs live in `docs/superpowers
    `FileSystemArtifactStore`, `IDeclarationRunStore`, `DeclarationHistoryService`, durable artifacts
    under `generated\`, the `/history` page, and `.xlsx`/`.pdf` re-downloads. Generation is now
    append-only; the reviewed grid's route overrides are threaded into generation.
+
+Post-slice-5 enhancements: an Overview dashboard (home page) and a read-only history sheet-preview
+modal, sharing an `ISheetPreviewReader` seam. See
+`docs/superpowers/specs/2026-07-12-overview-history-preview-design.md`.
 
 ## 14. Design language & theming
 

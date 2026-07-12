@@ -98,6 +98,7 @@ IExcelWriter           // fill the template from a TemplateProfile         (Clos
 IPdfConverter          // xlsx -> pdf                                      (LibreOfficePdfConverter)
 ITemplateProfileStore  // persist template file + mappings, select active
 IArtifactStore         // read/write/delete generated files on disk         (FileSystemArtifactStore)
+ISheetPreviewReader    // read a sheet's used range for preview (evaluates formulas) (ClosedXmlSheetPreviewReader)
 IDeclarationRunStore   // run metadata + frozen rows                        (SqliteDeclarationRunStore)
 ```
 
@@ -133,6 +134,11 @@ filesystem, the database, or shells out goes behind one of these.
   and hands off to `DeclarationHistoryService` (over `IDeclarationRunStore` + `IArtifactStore`).
   Runs are immutable; a run can be hard-deleted (with confirm) from `/history`, which removes both
   the DB rows and the folder. No auto-retention. Backup is a folder-level sync of `DataRoot`.
+- **Overview + history preview (post-slice-5).** The home page (`/`) is a status dashboard composed
+  from existing services (no new backend): current-month counts, a previous-month declare nudge, a
+  location breakdown, recent runs, and setup health. A history row opens a **read-only** modal that
+  renders the run's stored `.xlsx` via `ISheetPreviewReader` — formula cells (the `SUM` total) are
+  evaluated at render time; the stored files are never modified.
 
 ## Careful zones
 
