@@ -114,6 +114,20 @@ function Install-DotnetSdk {
     $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
 }
 
+function Install-HostingBundle {
+    Write-Phase 'ASP.NET Core Hosting Bundle'
+    if (Test-Path $AncmDll) {
+        Write-Info 'Hosting Bundle (ANCM v2) already present.'
+        return
+    }
+    Invoke-SilentInstaller -Url $HostingUrl -FileName 'dotnet-hosting-10-win.exe' -Arguments @('/install', '/quiet', '/norestart')
+    Add-Summary 'Installed ASP.NET Core Hosting Bundle'
+    # The bundle registers the IIS module; bounce WAS/W3SVC so IIS loads it.
+    Write-Info 'Restarting IIS (net stop was / net start w3svc) to load the module...'
+    & net stop was /y | Out-Null
+    & net start w3svc | Out-Null
+}
+
 # --- Main -----------------------------------------------------------------
 Write-Phase 'Transit installer starting'
 Write-Info  "Repo root:   $RepoRoot"
@@ -122,3 +136,4 @@ Write-Info  "Data root:   $DataRoot"
 Invoke-Preflight
 Install-IisFeatures
 Install-DotnetSdk
+Install-HostingBundle
