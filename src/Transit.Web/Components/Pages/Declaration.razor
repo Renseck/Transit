@@ -8,6 +8,10 @@
 @inject RouteService Routes
 @inject LocationService Locations
 @inject IAttendanceStore AttendanceStore
+@inject GenerationService Generation
+@inject ITemplateProfileStore Profiles
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <PageTitle>Declaration</PageTitle>
 
@@ -21,6 +25,9 @@
             <button type="button" class="tr-ctrl" @onclick="PrevMonth" aria-label="Previous month">&lsaquo; Prev</button>
             <button type="button" class="tr-ctrl tr-ctrl--now" @onclick="GoToday">Today</button>
             <button type="button" class="tr-ctrl" @onclick="NextMonth" aria-label="Next month">Next &rsaquo;</button>
+            <button type="button" class="tr-ctrl" @onclick="Generate" disabled="@(!_hasActiveProfile || _generating)">
+                @(_generating ? "Generating…" : "Generate")
+            </button>
         </nav>
     </header>
 
@@ -31,6 +38,14 @@
             travel days. Monthly totals live in the export template, not here.
         </span>
     </p>
+
+    @if (!_hasActiveProfile)
+    {
+        <p class="tr-note">
+            <span class="tr-note__key">Setup</span>
+            <span>No active template yet. <a href="template">Set one up</a> before generating.</span>
+        </p>
+    }
 
     <section aria-label="Declaration review">
         <div class="tr-decl-head">
@@ -96,6 +111,8 @@
 @code {
     private int _year = DateTime.Today.Year;
     private int _month = DateTime.Today.Month;
+    private bool _hasActiveProfile;
+    private bool _generating;
     private DeclarationDraft? _draft;
     private List<WorkLocation> _activeLocations = [];
     private List<Route> _routes = [];
@@ -110,6 +127,9 @@
     {
         _activeLocations = [.. await Locations.GetActiveAsync()];
         _routes = [.. await Routes.GetAllAsync()];
+
+        await LoadAsync();
+        _hasActiveProfile = await Profiles.GetActiveAsync() is not null;
 
         var all = await Locations.GetAllAsync(includeArchived: true);
         var def = all.FirstOrDefault(l => l.IsDefaultForUnmarked);
@@ -207,5 +227,39 @@
         return int.TryParse(value.AsSpan(0, 2), System.Globalization.NumberStyles.HexNumber, null, out r)
             && int.TryParse(value.AsSpan(2, 2), System.Globalization.NumberStyles.HexNumber, null, out g)
             && int.TryParse(value.AsSpan(4, 2), System.Globalization.NumberStyles.HexNumber, null, out b);
+    }
+
+    private async Task Generate()
+    {
+        _generating = true;
+        try
+        {
+            var result = await Generation.GenerateAsync(_year, _month);
+            await DownloadAsync(result.XlsxFileName, result.XlsxBytes);
+
+            if (result.PdfBytes is not null)
+            {
+                await DownloadAsync(result.PdfFileName, result.PdfBytes);
+            }
+            else
+            {
+                Snackbar.Add("Generated the spreadsheet, but PDF conversion was unavailable (check LibreOffice).", Severity.Warning);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        finally
+        {
+            _generating = false;
+        }
+    }
+
+    private async Task DownloadAsync(string fileName, byte[] bytes)
+    {
+        using var stream = new MemoryStream(bytes);
+        using var streamRef = new DotNetStreamReference(stream);
+        await JS.InvokeVoidAsync("transitDownloadFromStream", fileName, streamRef);
     }
 }
