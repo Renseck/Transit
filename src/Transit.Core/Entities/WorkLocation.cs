@@ -14,4 +14,7 @@ public class WorkLocation
 
     // Brush-bar / list order. Lower sorts first; new locations append.
     public int DisplayOrder { get; set; }
+
+    // Optional postcode of this place; feeds the template's van/naar postcode columns.
+    public string? Postcode { get; set; }
 }
