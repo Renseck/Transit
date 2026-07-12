@@ -143,6 +143,22 @@ function Install-LibreOffice {
     Add-Summary 'Installed LibreOffice (libreoffice-still)'
 }
 
+function New-TransitAppPool {
+    Write-Phase "App pool '$AppPool'"
+    if (-not (Test-Path "IIS:\AppPools\$AppPool")) {
+        New-WebAppPool -Name $AppPool | Out-Null
+        Add-Summary "Created app pool '$AppPool'"
+    } else {
+        Write-Info "App pool '$AppPool' already exists."
+    }
+    # No Managed Code: empty managedRuntimeVersion.
+    Set-ItemProperty "IIS:\AppPools\$AppPool" -Name managedRuntimeVersion -Value ''
+    if ((Get-WebAppPoolState -Name $AppPool).Value -ne 'Started') {
+        Start-WebAppPool -Name $AppPool
+    }
+    Write-Info "App pool '$AppPool' set to No Managed Code and started."
+}
+
 # --- Main -----------------------------------------------------------------
 Write-Phase 'Transit installer starting'
 Write-Info  "Repo root:   $RepoRoot"
@@ -153,3 +169,5 @@ Install-IisFeatures
 Install-DotnetSdk
 Install-HostingBundle
 Install-LibreOffice
+Import-Module WebAdministration
+New-TransitAppPool
