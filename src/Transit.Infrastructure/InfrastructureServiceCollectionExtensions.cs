@@ -5,6 +5,8 @@ using Microsoft.Extensions.Options;
 using Transit.Core.Abstractions;
 using Transit.Core.Services;
 using Transit.Infrastructure.Configuration;
+using Transit.Infrastructure.Excel;
+using Transit.Infrastructure.Pdf;
 using Transit.Infrastructure.Persistence;
 
 namespace Transit.Infrastructure;
@@ -15,6 +17,7 @@ public static class InfrastructureServiceCollectionExtensions
         this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
+        services.Configure<PdfConverterOptions>(configuration.GetSection(PdfConverterOptions.SectionName));
 
         // Context factory: the Blazor Server-safe way to use EF (no shared scoped context across a circuit).
         services.AddDbContextFactory<TransitDbContext>((sp, options) =>
@@ -26,9 +29,13 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAttendanceStore, SqliteAttendanceStore>();
         services.AddScoped<ILocationStore, SqliteLocationStore>();
         services.AddScoped<IRouteStore, SqliteRouteStore>();
+        services.AddScoped<ITemplateProfileStore, SqliteTemplateProfileStore>();
+        services.AddScoped<IExcelWriter, ClosedXmlTemplateWriter>();
+        services.AddScoped<IPdfConverter, LibreOfficePdfConverter>();
         services.AddScoped<LocationService>();
         services.AddScoped<RouteService>();
         services.AddScoped<DeclarationService>();
+        services.AddScoped<GenerationService>();
 
         return services;
     }
