@@ -42,6 +42,56 @@ public static class DeclarationBuilder
         return new DeclarationDraft(year, month, rows);
     }
 
+    /// <summary>
+    /// Re-resolves the review grid's per-day route overrides onto an already-built draft so the
+    /// result equals what the user reviewed. Only travel rows whose date is in <paramref name="selections"/>
+    /// change; a null selection or an unknown route id yields a no-route row. Pure; no I/O.
+    /// </summary>
+    public static DeclarationDraft ApplySelections(
+        DeclarationDraft draft,
+        IReadOnlyDictionary<DateOnly, int?> selections,
+        IReadOnlyList<Route> routes,
+        IReadOnlyList<WorkLocation> locations)
+    {
+        var routeById = routes.ToDictionary(r => r.Id);
+        var locationById = locations.ToDictionary(l => l.Id);
+        var rows = draft.Rows.Select(row => ApplyToRow(row, selections, routeById, locationById)).ToList();
+        return new DeclarationDraft(draft.Year, draft.Month, rows);
+    }
+
+    private static DeclarationDraftRow ApplyToRow(
+        DeclarationDraftRow row,
+        IReadOnlyDictionary<DateOnly, int?> selections,
+        IReadOnlyDictionary<int, Route> routeById,
+        IReadOnlyDictionary<int, WorkLocation> locationById)
+    {
+        if (!row.CountsAsTravel || !selections.TryGetValue(row.Date, out var routeId))
+        {
+            return row;
+        }
+
+        if (routeId is null || !routeById.TryGetValue(routeId.Value, out var route))
+        {
+            return row with
+            {
+                SelectedRouteId = null, RouteName = null,
+                FromLocationName = null, FromPostcode = null, ToLocationName = null, ToPostcode = null,
+                OutboundKm = 0m, ReturnKm = 0m, Kilometers = 0m, HasNoRoute = true,
+            };
+        }
+
+        var from = locationById.GetValueOrDefault(route.FromLocationId);
+        var to = locationById.GetValueOrDefault(route.ToLocationId);
+
+        return row with
+        {
+            SelectedRouteId = route.Id, RouteName = route.Name,
+            FromLocationName = from?.Name, FromPostcode = from?.Postcode,
+            ToLocationName = to?.Name, ToPostcode = to?.Postcode,
+            OutboundKm = route.OutboundKm, ReturnKm = route.ReturnKm, Kilometers = route.TotalKm, HasNoRoute = false,
+        };
+    }
+
     private static (WorkLocation location, bool isUnmarkedDefault) ResolveLocation(
         bool hasEntry, int markedId, IReadOnlyDictionary<int, WorkLocation> locationById, WorkLocation defaultLocation)
     {
