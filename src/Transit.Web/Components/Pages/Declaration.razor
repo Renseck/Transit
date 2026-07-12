@@ -1,0 +1,211 @@
+@page "/declaration"
+@rendermode InteractiveServer
+@using Transit.Core.Abstractions
+@using Transit.Core.Declarations
+@using Transit.Core.Entities
+@using Transit.Core.Services
+@inject DeclarationService Declarations
+@inject RouteService Routes
+@inject LocationService Locations
+@inject IAttendanceStore AttendanceStore
+
+<PageTitle>Declaration</PageTitle>
+
+<div class="tr-stack">
+    <header class="tr-board">
+        <div>
+            <div class="tr-board__eyebrow">Declaration</div>
+            <h1 class="tr-board__month">@_monthLabel</h1>
+        </div>
+        <nav class="tr-board__nav" aria-label="Change month">
+            <button type="button" class="tr-ctrl" @onclick="PrevMonth" aria-label="Previous month">&lsaquo; Prev</button>
+            <button type="button" class="tr-ctrl tr-ctrl--now" @onclick="GoToday">Today</button>
+            <button type="button" class="tr-ctrl" @onclick="NextMonth" aria-label="Next month">Next &rsaquo;</button>
+        </nav>
+    </header>
+
+    <p class="tr-note">
+        <span class="tr-note__key">Review</span>
+        <span>
+            Unmarked weekdays default to @_defaultName. Change a day's location to record it; pick a route on
+            travel days. Monthly totals live in the export template, not here.
+        </span>
+    </p>
+
+    <section aria-label="Declaration review">
+        <div class="tr-decl-head">
+            <div class="tr-decl-head__cell">Date</div>
+            <div class="tr-decl-head__cell">Location</div>
+            <div class="tr-decl-head__cell">Route</div>
+            <div class="tr-decl-head__cell tr-decl-head__cell--km">Km</div>
+        </div>
+        <div class="tr-decl-grid">
+            @if (_draft is not null)
+            {
+                @foreach (var row in _draft.Rows)
+                {
+                    var selectedRouteId = SelectedRoute(row);
+                    var km = ComputeKm(row, selectedRouteId);
+                    <div class="@RowClasses(row)">
+                        <span class="tr-decl-row__date">
+                            <span>@row.Date.ToString("dd MMM")</span>
+                            <span class="tr-decl-row__weekday">@row.WeekdayName@(row.IsUnmarkedDefault ? " · default" : "")</span>
+                        </span>
+
+                        <span class="tr-decl-row__loc">
+                            <span class="tr-bullet @(row.CountsAsTravel ? "" : "tr-bullet--outline")"
+                                  style="--bullet-color:@row.ColorHex;--bullet-fg:@ContrastText(row.ColorHex)">@Initial(row.LocationName)</span>
+                            <MudSelect T="int" Value="row.WorkLocationId" Dense="true" Variant="Variant.Text"
+                                       ValueChanged="(int v) => OnLocationChanged(row.Date, v)">
+                                @foreach (var l in _activeLocations)
+                                {
+                                    <MudSelectItem T="int" Value="l.Id">@l.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </span>
+
+                        <span>
+                            @if (row.CountsAsTravel)
+                            {
+                                <MudSelect T="int?" Value="selectedRouteId" Dense="true" Variant="Variant.Text"
+                                           ValueChanged="(int? v) => OnRouteChanged(row.Date, v)">
+                                    <MudSelectItem T="int?" Value="@((int?)null)">&mdash; none &mdash;</MudSelectItem>
+                                    @foreach (var rt in RoutesTo(row.WorkLocationId))
+                                    {
+                                        <MudSelectItem T="int?" Value="@((int?)rt.Id)">@rt.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+                        </span>
+
+                        @if (row.CountsAsTravel && selectedRouteId is null)
+                        {
+                            <span class="tr-decl-row__flag">No route</span>
+                        }
+                        else
+                        {
+                            <span class="tr-decl-row__km">@km.ToString("0.#")</span>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    </section>
+</div>
+
+@code {
+    private int _year = DateTime.Today.Year;
+    private int _month = DateTime.Today.Month;
+    private DeclarationDraft? _draft;
+    private List<WorkLocation> _activeLocations = [];
+    private List<Route> _routes = [];
+    private string _defaultName = "Home";
+
+    // User route overrides keyed by date; survive a location edit elsewhere. null = "none".
+    private readonly Dictionary<DateOnly, int?> _routeOverride = [];
+
+    private string _monthLabel => new DateOnly(_year, _month, 1).ToString("MMMM yyyy");
+
+    protected override async Task OnInitializedAsync()
+    {
+        _activeLocations = [.. await Locations.GetActiveAsync()];
+        _routes = [.. await Routes.GetAllAsync()];
+
+        var all = await Locations.GetAllAsync(includeArchived: true);
+        var def = all.FirstOrDefault(l => l.IsDefaultForUnmarked);
+        _defaultName = def?.Name ?? "the default location";
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _draft = await Declarations.BuildDraftAsync(_year, _month);
+
+    private int? SelectedRoute(DeclarationDraftRow row)
+        => _routeOverride.TryGetValue(row.Date, out var o) ? o : row.SelectedRouteId;
+
+    private decimal ComputeKm(DeclarationDraftRow row, int? routeId)
+    {
+        if (!row.CountsAsTravel || routeId is null)
+        {
+            return 0m;
+        }
+
+        return _routes.FirstOrDefault(r => r.Id == routeId)?.TotalKm ?? 0m;
+    }
+
+    private IEnumerable<Route> RoutesTo(int destinationId) => _routes.Where(r => r.ToLocationId == destinationId);
+
+    private void OnRouteChanged(DateOnly date, int? routeId) => _routeOverride[date] = routeId;
+
+    private async Task OnLocationChanged(DateOnly date, int newLocationId)
+    {
+        await AttendanceStore.SetAsync(date, newLocationId);
+        _routeOverride.Remove(date);   // destination changed — fall back to its default
+        await LoadAsync();
+    }
+
+    private string RowClasses(DeclarationDraftRow row)
+    {
+        var classes = new List<string> { "tr-decl-row" };
+        if (!row.CountsAsTravel)
+        {
+            classes.Add("tr-decl-row--nontravel");
+        }
+        if (row.CountsAsTravel && SelectedRoute(row) is null)
+        {
+            classes.Add("tr-decl-row--noroute");
+        }
+        return string.Join(' ', classes);
+    }
+
+    private async Task PrevMonth()
+    {
+        var d = new DateOnly(_year, _month, 1).AddMonths(-1);
+        (_year, _month) = (d.Year, d.Month);
+        _routeOverride.Clear();
+        await LoadAsync();
+    }
+
+    private async Task NextMonth()
+    {
+        var d = new DateOnly(_year, _month, 1).AddMonths(1);
+        (_year, _month) = (d.Year, d.Month);
+        _routeOverride.Clear();
+        await LoadAsync();
+    }
+
+    private async Task GoToday()
+    {
+        (_year, _month) = (DateTime.Today.Year, DateTime.Today.Month);
+        _routeOverride.Clear();
+        await LoadAsync();
+    }
+
+    private static string Initial(string name)
+        => string.IsNullOrEmpty(name) ? "?" : name[..1].ToUpperInvariant();
+
+    private static string ContrastText(string hex)
+    {
+        if (!TryParseHex(hex, out var r, out var g, out var b))
+        {
+            return "#FFFFFF";
+        }
+
+        var luminance = ((0.299 * r) + (0.587 * g) + (0.114 * b)) / 255.0;
+        return luminance > 0.6 ? "#1A1F2B" : "#FFFFFF";
+    }
+
+    private static bool TryParseHex(string hex, out int r, out int g, out int b)
+    {
+        r = g = b = 0;
+        var value = hex.TrimStart('#');
+        if (value.Length != 6)
+        {
+            return false;
+        }
+
+        return int.TryParse(value.AsSpan(0, 2), System.Globalization.NumberStyles.HexNumber, null, out r)
+            && int.TryParse(value.AsSpan(2, 2), System.Globalization.NumberStyles.HexNumber, null, out g)
+            && int.TryParse(value.AsSpan(4, 2), System.Globalization.NumberStyles.HexNumber, null, out b);
+    }
+}
