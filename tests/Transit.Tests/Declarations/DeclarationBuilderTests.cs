@@ -15,11 +15,13 @@ public class DeclarationBuilderTests
     private static WorkLocation Home() => new()
     {
         Id = 1, Name = "Home", ColorHex = "#4C566A", CountsAsTravel = false, IsDefaultForUnmarked = true,
+        Postcode = "1234 AB",
     };
 
     private static WorkLocation Office() => new()
     {
         Id = 2, Name = "Office", ColorHex = "#3B5BDB", CountsAsTravel = true, IsDefaultForUnmarked = false,
+        Postcode = "5678 CD",
     };
 
     private static Route HomeOffice(bool isDefault = true) => new()
@@ -126,5 +128,17 @@ public class DeclarationBuilderTests
         var draft = DeclarationBuilder.Build(Y, M, entries, [Home(), Office()], [scenic, HomeOffice(isDefault: true)]);
         var row = draft.Rows.First(r => r.Date == Wed1);
         Assert.Equal(10, row.SelectedRouteId);   // the flagged default, not the scenic alt
+    }
+
+    [Fact]
+    public void Travel_day_threads_from_and_to_names_and_postcodes()
+    {
+        var entries = new[] { new AttendanceEntry { Date = Wed1, WorkLocationId = 2 } };
+        var draft = DeclarationBuilder.Build(Y, M, entries, [Home(), Office()], [HomeOffice()]);
+        var row = draft.Rows.First(r => r.Date == Wed1);
+        Assert.Equal("Home", row.FromLocationName);
+        Assert.Equal("1234 AB", row.FromPostcode);
+        Assert.Equal("Office", row.ToLocationName);
+        Assert.Equal("5678 CD", row.ToPostcode);
     }
 }

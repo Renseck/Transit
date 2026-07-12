@@ -36,7 +36,7 @@ public static class DeclarationBuilder
             }
 
             var (location, isUnmarkedDefault) = ResolveLocation(hasEntry, markedId, locationById, defaultLocation);
-            rows.Add(BuildRow(date, location, isUnmarkedDefault, routes));
+            rows.Add(BuildRow(date, location, isUnmarkedDefault, routes, locationById));
         }
 
         return new DeclarationDraft(year, month, rows);
@@ -55,7 +55,8 @@ public static class DeclarationBuilder
     }
 
     private static DeclarationDraftRow BuildRow(
-        DateOnly date, WorkLocation location, bool isUnmarkedDefault, IReadOnlyList<Route> routes)
+        DateOnly date, WorkLocation location, bool isUnmarkedDefault, IReadOnlyList<Route> routes,
+        IReadOnlyDictionary<int, WorkLocation> locationById)
     {
         var weekday = date.ToString("dddd");
 
@@ -74,8 +75,13 @@ public static class DeclarationBuilder
                 isUnmarkedDefault, null, null, 0m, 0m, 0m, true);
         }
 
+        var from = locationById.GetValueOrDefault(route.FromLocationId);
+        var to = locationById.GetValueOrDefault(route.ToLocationId);
+
         return new DeclarationDraftRow(
             date, weekday, location.Id, location.Name, location.ColorHex, location.CountsAsTravel,
-            isUnmarkedDefault, route.Id, route.Name, route.OutboundKm, route.ReturnKm, route.TotalKm, false);
+            isUnmarkedDefault, route.Id, route.Name, route.OutboundKm, route.ReturnKm, route.TotalKm, false,
+            FromLocationName: from?.Name, FromPostcode: from?.Postcode,
+            ToLocationName: to?.Name, ToPostcode: to?.Postcode);
     }
 }
