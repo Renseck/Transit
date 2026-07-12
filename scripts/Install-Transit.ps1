@@ -128,6 +128,21 @@ function Install-HostingBundle {
     & net start w3svc | Out-Null
 }
 
+function Install-LibreOffice {
+    Write-Phase 'LibreOffice'
+    if (Test-Path $SofficeExe) {
+        Write-Info 'LibreOffice already present.'
+        return
+    }
+    if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+        throw "Chocolatey not found and LibreOffice is missing. Install Chocolatey (https://chocolatey.org/install) or LibreOffice manually, then re-run."
+    }
+    Write-Info 'Installing LibreOffice via Chocolatey...'
+    & choco install libreoffice-still -y
+    if ($LASTEXITCODE -ne 0) { throw "choco install libreoffice-still failed (exit $LASTEXITCODE)." }
+    Add-Summary 'Installed LibreOffice (libreoffice-still)'
+}
+
 # --- Main -----------------------------------------------------------------
 Write-Phase 'Transit installer starting'
 Write-Info  "Repo root:   $RepoRoot"
@@ -137,3 +152,4 @@ Invoke-Preflight
 Install-IisFeatures
 Install-DotnetSdk
 Install-HostingBundle
+Install-LibreOffice
