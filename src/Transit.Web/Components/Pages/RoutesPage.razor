@@ -1,0 +1,214 @@
+@page "/routes"
+@rendermode InteractiveServer
+@using Transit.Core.Entities
+@using Transit.Core.Services
+@inject RouteService Routes
+@inject LocationService Locations
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Routes</PageTitle>
+
+<div class="tr-stack">
+    <header class="tr-board">
+        <div>
+            <div class="tr-board__eyebrow">Connections</div>
+            <h1 class="tr-board__month">Routes</h1>
+        </div>
+        <nav class="tr-board__nav">
+            <button type="button" class="tr-ctrl tr-ctrl--now" @onclick="AddRoute">+ Add route</button>
+        </nav>
+    </header>
+
+    @if (_routes.Count == 0)
+    {
+        <p class="tr-note">
+            <span class="tr-note__key">Empty</span>
+            <span>No routes yet. Add one to give travel days their kilometres.</span>
+        </p>
+    }
+
+    @foreach (var group in _grouped)
+    {
+        <div>
+            <div class="tr-section-eyebrow">To @LocationName(group.Key)</div>
+            <div class="tr-line-list">
+                @foreach (var route in group.Value)
+                {
+                    <div class="tr-line-row @(IsArchivedEndpoint(route) ? "tr-line-row--archived" : "")">
+                        <span class="tr-connection">
+                            <span class="tr-bullet @Outline(route.FromLocationId)" style="@BulletVars(route.FromLocationId)">@InitialFor(route.FromLocationId)</span>
+                            <span class="tr-connection__track"></span>
+                            <span class="tr-bullet @Outline(route.ToLocationId)" style="@BulletVars(route.ToLocationId)">@InitialFor(route.ToLocationId)</span>
+                        </span>
+                        <span class="tr-line-row__name">@route.Name</span>
+                        <span class="tr-legs">
+                            <span>&rarr; @route.OutboundKm.ToString("0.#")</span>
+                            <span>&larr; @route.ReturnKm.ToString("0.#")</span>
+                            <span class="tr-legs__total">&Sigma; @route.TotalKm.ToString("0.#")</span>
+                        </span>
+                        @if (route.IsDefault)
+                        {
+                            <span class="tr-tag tr-chip--default">Default</span>
+                        }
+                        <span class="tr-line-row__spacer"></span>
+                        <span class="tr-line-row__actions">
+                            @if (!route.IsDefault)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Star" Size="Size.Small"
+                                               title="Make default" OnClick="() => MakeDefault(route.Id)" />
+                            }
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                           title="Edit" OnClick="() => EditRoute(route)" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           title="Delete" OnClick="() => DeleteRoute(route)" />
+                        </span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Route> _routes = [];
+    private List<WorkLocation> _activeLocations = [];   // endpoints offered in the editor
+    private List<WorkLocation> _allLocations = [];      // includes archived, for rendering endpoints
+    private List<KeyValuePair<int, List<Route>>> _grouped = [];
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _allLocations = [.. await Locations.GetAllAsync(includeArchived: true)];
+        _activeLocations = [.. _allLocations.Where(l => !l.IsArchived)];
+        _routes = [.. await Routes.GetAllAsync()];
+        _grouped = [.. _routes
+            .GroupBy(r => r.ToLocationId)
+            .Select(g => new KeyValuePair<int, List<Route>>(g.Key, g.ToList()))];
+    }
+
+    private async Task RunGuarded(Func<Task> action)
+    {
+        try
+        {
+            await action();
+            await ReloadAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task AddRoute()
+    {
+        if (_activeLocations.Count < 2)
+        {
+            Snackbar.Add("Add at least two locations before creating a route.", Severity.Warning);
+            return;
+        }
+
+        var parameters = new DialogParameters<RouteEditorDialog> { { x => x.Locations, _activeLocations } };
+        var dialog = await DialogService.ShowAsync<RouteEditorDialog>("Add route", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not RouteEditorDialog.RouteEditResult r)
+        {
+            return;
+        }
+
+        await RunGuarded(() => Routes.CreateAsync(r.Name, r.FromId, r.ToId, r.OutboundKm, r.ReturnKm, r.MakeDefault));
+    }
+
+    private async Task EditRoute(Route route)
+    {
+        var parameters = new DialogParameters<RouteEditorDialog>
+        {
+            { x => x.Locations, _activeLocations },
+            { x => x.Existing, route },
+        };
+        var dialog = await DialogService.ShowAsync<RouteEditorDialog>("Edit route", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not RouteEditorDialog.RouteEditResult r)
+        {
+            return;
+        }
+
+        await RunGuarded(async () =>
+        {
+            // Endpoints are fixed on edit — only name + km change here.
+            await Routes.UpdateAsync(route.Id, r.Name, r.OutboundKm, r.ReturnKm);
+            if (r.MakeDefault)
+            {
+                await Routes.SetDefaultAsync(route.Id);
+            }
+        });
+    }
+
+    private Task MakeDefault(int id) => RunGuarded(() => Routes.SetDefaultAsync(id));
+
+    private async Task DeleteRoute(Route route)
+    {
+        var parameters = new DialogParameters<MudMessageBox>
+        {
+            { x => x.Title, "Delete route" },
+            { x => x.Message, $"Delete \"{route.Name}\"? This cannot be undone." },
+            { x => x.YesText, "Delete" },
+            { x => x.CancelText, "Cancel" },
+        };
+        var dialog = await DialogService.ShowAsync<MudMessageBox>(string.Empty, parameters);
+        var result = await dialog.Result;
+        var confirmed = result is not null && !result.Canceled && result.Data as bool? == true;
+        if (confirmed == true)
+        {
+            await RunGuarded(() => Routes.DeleteAsync(route.Id));
+        }
+    }
+
+    private bool IsArchivedEndpoint(Route route)
+        => Lookup(route.FromLocationId)?.IsArchived == true || Lookup(route.ToLocationId)?.IsArchived == true;
+
+    private WorkLocation? Lookup(int id) => _allLocations.FirstOrDefault(l => l.Id == id);
+
+    private string LocationName(int id) => Lookup(id)?.Name ?? "?";
+
+    private string InitialFor(int id)
+    {
+        var name = Lookup(id)?.Name;
+        return string.IsNullOrEmpty(name) ? "?" : name[..1].ToUpperInvariant();
+    }
+
+    private string Outline(int id) => Lookup(id)?.CountsAsTravel == true ? "" : "tr-bullet--outline";
+
+    private string BulletVars(int id)
+    {
+        var hex = Lookup(id)?.ColorHex ?? "#6B7280";
+        return $"--bullet-color:{hex};--bullet-fg:{ContrastText(hex)}";
+    }
+
+    // Pick a legible glyph colour for a bullet against an arbitrary line colour.
+    private static string ContrastText(string hex)
+    {
+        if (!TryParseHex(hex, out var r, out var g, out var b))
+        {
+            return "#FFFFFF";
+        }
+
+        var luminance = ((0.299 * r) + (0.587 * g) + (0.114 * b)) / 255.0;
+        return luminance > 0.6 ? "#1A1F2B" : "#FFFFFF";
+    }
+
+    private static bool TryParseHex(string hex, out int r, out int g, out int b)
+    {
+        r = g = b = 0;
+        var value = hex.TrimStart('#');
+        if (value.Length != 6)
+        {
+            return false;
+        }
+
+        return int.TryParse(value.AsSpan(0, 2), System.Globalization.NumberStyles.HexNumber, null, out r)
+            && int.TryParse(value.AsSpan(2, 2), System.Globalization.NumberStyles.HexNumber, null, out g)
+            && int.TryParse(value.AsSpan(4, 2), System.Globalization.NumberStyles.HexNumber, null, out b);
+    }
+}
