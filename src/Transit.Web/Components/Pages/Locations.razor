@@ -116,7 +116,7 @@
 
         await RunGuarded(async () =>
         {
-            var created = await LocationService.CreateAsync(r.Name, r.ColorHex, r.CountsAsTravel);
+            var created = await LocationService.CreateAsync(r.Name, r.ColorHex, r.CountsAsTravel, r.Postcode);
             if (r.MakeDefault)
             {
                 await LocationService.SetDefaultAsync(created.Id);
@@ -136,7 +136,7 @@
 
         await RunGuarded(async () =>
         {
-            await LocationService.UpdateAsync(loc.Id, r.Name, r.ColorHex, r.CountsAsTravel);
+            await LocationService.UpdateAsync(loc.Id, r.Name, r.ColorHex, r.CountsAsTravel, r.Postcode);
             if (r.MakeDefault)
             {
                 await LocationService.SetDefaultAsync(loc.Id);

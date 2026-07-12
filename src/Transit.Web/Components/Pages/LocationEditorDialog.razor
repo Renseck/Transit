@@ -9,6 +9,7 @@
         <div class="tr-stack" style="gap:1rem;">
             <MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" Immediate="true" />
 
+            <MudTextField @bind-Value="_postcode" Label="Postcode (optional)" Variant="Variant.Outlined" />
             <div>
                 <div class="tr-section-eyebrow">Line colour</div>
                 <div class="tr-swatch-set">
@@ -44,6 +45,7 @@
     [Parameter] public WorkLocation? Existing { get; set; }
 
     private string _name = string.Empty;
+    private string _postcode = string.Empty;
     private string _colorHex = LinePalette.All[0].Hex;
     private bool _countsAsTravel;
     private bool _makeDefault;
@@ -59,6 +61,7 @@
         }
 
         _name = Existing.Name;
+        _postcode = Existing.Postcode ?? string.Empty;
         _colorHex = Existing.ColorHex;
         _countsAsTravel = Existing.CountsAsTravel;
         _isCurrentDefault = Existing.IsDefaultForUnmarked;
@@ -73,8 +76,8 @@
     private void Cancel() => MudDialog.Cancel();
 
     private void Save()
-        => MudDialog.Close(DialogResult.Ok(new LocationEditResult(_name, _colorHex, _countsAsTravel, _makeDefault && !_isCurrentDefault)));
+        => MudDialog.Close(DialogResult.Ok(new LocationEditResult(_name, _colorHex, _countsAsTravel, _makeDefault && !_isCurrentDefault, _postcode)));
 
     // Nested in the component's @code so it surfaces as LocationEditorDialog.LocationEditResult.
-    public sealed record LocationEditResult(string Name, string ColorHex, bool CountsAsTravel, bool MakeDefault);
+    public sealed record LocationEditResult(string Name, string ColorHex, bool CountsAsTravel, bool MakeDefault, string? Postcode);
 }
