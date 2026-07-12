@@ -62,9 +62,26 @@ function Invoke-Preflight {
     }
 }
 
+function Install-IisFeatures {
+    Write-Phase 'IIS Windows features'
+    $features = @('IIS-WebServerRole', 'IIS-WebServer', 'IIS-ManagementScriptingTools')
+    foreach ($f in $features) {
+        $state = (Get-WindowsOptionalFeature -Online -FeatureName $f).State
+        if ($state -eq 'Enabled') {
+            Write-Info "$f already enabled."
+            continue
+        }
+        Write-Info "Enabling $f ..."
+        $result = Enable-WindowsOptionalFeature -Online -FeatureName $f -All -NoRestart
+        if ($result.RestartNeeded) { $script:RebootFlag = $true }
+        Add-Summary "Enabled IIS feature: $f"
+    }
+}
+
 # --- Main -----------------------------------------------------------------
 Write-Phase 'Transit installer starting'
 Write-Info  "Repo root:   $RepoRoot"
 Write-Info  "Publish dir: $PublishDir"
 Write-Info  "Data root:   $DataRoot"
 Invoke-Preflight
+Install-IisFeatures
