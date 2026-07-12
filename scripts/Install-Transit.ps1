@@ -78,6 +78,42 @@ function Install-IisFeatures {
     }
 }
 
+function Invoke-SilentInstaller {
+    param([string]$Url, [string]$FileName, [string[]]$Arguments)
+    $dest = Join-Path $env:TEMP $FileName
+    Write-Info "Downloading $FileName ..."
+    Invoke-WebRequest -Uri $Url -OutFile $dest -UseBasicParsing
+    Write-Info "Running $FileName ..."
+    $proc = Start-Process -FilePath $dest -ArgumentList $Arguments -Wait -PassThru
+    Remove-Item $dest -ErrorAction SilentlyContinue
+    if ($proc.ExitCode -eq 3010) {
+        $script:RebootFlag = $true
+        Write-Info "$FileName installed; a reboot is pending (exit 3010)."
+        return
+    }
+    if ($proc.ExitCode -ne 0) {
+        throw "$FileName failed with exit code $($proc.ExitCode)."
+    }
+}
+
+function Test-DotnetSdk10 {
+    if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) { return $false }
+    $sdks = & dotnet --list-sdks 2>$null
+    return [bool]($sdks | Where-Object { $_ -match '^10\.' })
+}
+
+function Install-DotnetSdk {
+    Write-Phase '.NET 10 SDK'
+    if (Test-DotnetSdk10) {
+        Write-Info '.NET 10 SDK already present.'
+        return
+    }
+    Invoke-SilentInstaller -Url $SdkUrl -FileName 'dotnet-sdk-10-win-x64.exe' -Arguments @('/install', '/quiet', '/norestart')
+    Add-Summary 'Installed .NET 10 SDK'
+    # Refresh PATH for this session so later dotnet calls resolve.
+    $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+}
+
 # --- Main -----------------------------------------------------------------
 Write-Phase 'Transit installer starting'
 Write-Info  "Repo root:   $RepoRoot"
@@ -85,3 +121,4 @@ Write-Info  "Publish dir: $PublishDir"
 Write-Info  "Data root:   $DataRoot"
 Invoke-Preflight
 Install-IisFeatures
+Install-DotnetSdk
