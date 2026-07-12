@@ -32,9 +32,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITemplateProfileStore, SqliteTemplateProfileStore>();
         services.AddScoped<IExcelWriter, ClosedXmlTemplateWriter>();
         services.AddScoped<IPdfConverter, LibreOfficePdfConverter>();
+        services.AddScoped<IArtifactStore, FileSystemArtifactStore>();
+        services.AddScoped<IDeclarationRunStore, SqliteDeclarationRunStore>();
         services.AddScoped<LocationService>();
         services.AddScoped<RouteService>();
         services.AddScoped<DeclarationService>();
+        services.AddScoped<DeclarationHistoryService>();
         services.AddScoped<GenerationService>();
 
         return services;
