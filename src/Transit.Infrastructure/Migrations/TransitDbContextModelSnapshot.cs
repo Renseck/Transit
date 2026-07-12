@@ -89,6 +89,110 @@ namespace Transit.Infrastructure.Migrations
                     b.ToTable("ColumnMapping");
                 });
 
+            modelBuilder.Entity("Transit.Core.Entities.DeclarationRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ColorHex")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("CountsAsTravel")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DeclarationRunId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FromLocationName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FromPostcode")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("HasNoRoute")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsUnmarkedDefault")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Kilometers")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LocationName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("OutboundKm")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ReturnKm")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RouteId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RouteName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ToLocationName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ToPostcode")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("WeekdayName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("WorkLocationId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeclarationRunId");
+
+                    b.ToTable("DeclarationRow");
+                });
+
+            modelBuilder.Entity("Transit.Core.Entities.DeclarationRun", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PdfFilePath")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PeriodMonth")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PeriodYear")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TemplateName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TemplateProfileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("XlsxFilePath")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DeclarationRuns");
+                });
+
             modelBuilder.Entity("Transit.Core.Entities.Route", b =>
                 {
                     b.Property<int>("Id")
@@ -219,6 +323,15 @@ namespace Transit.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Transit.Core.Entities.DeclarationRow", b =>
+                {
+                    b.HasOne("Transit.Core.Entities.DeclarationRun", null)
+                        .WithMany("Rows")
+                        .HasForeignKey("DeclarationRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Transit.Core.Entities.Route", b =>
                 {
                     b.HasOne("Transit.Core.Entities.WorkLocation", null)
@@ -232,6 +345,11 @@ namespace Transit.Infrastructure.Migrations
                         .HasForeignKey("ToLocationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Transit.Core.Entities.DeclarationRun", b =>
+                {
+                    b.Navigation("Rows");
                 });
 
             modelBuilder.Entity("Transit.Core.Entities.TemplateProfile", b =>

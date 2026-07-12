@@ -10,7 +10,8 @@ public sealed class TransitDbContext : DbContext
     public DbSet<WorkLocation> WorkLocations => Set<WorkLocation>();
     public DbSet<AttendanceEntry> AttendanceEntries => Set<AttendanceEntry>();
     public DbSet<Route> Routes => Set<Route>();
-    public DbSet<TemplateProfile> TemplateProfiles => Set<TemplateProfile>();    
+    public DbSet<TemplateProfile> TemplateProfiles => Set<TemplateProfile>();
+    public DbSet<DeclarationRun> DeclarationRuns => Set<DeclarationRun>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -73,6 +74,25 @@ public sealed class TransitDbContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.CellRef).IsRequired();
             e.Property(x => x.Source).HasConversion<string>();
+        });
+
+        modelBuilder.Entity<DeclarationRun>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.TemplateName).IsRequired();
+            e.Property(x => x.XlsxFilePath).IsRequired();
+            e.HasMany(x => x.Rows)
+                .WithOne()
+                .HasForeignKey(r => r.DeclarationRunId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeclarationRow>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.WeekdayName).IsRequired();
+            e.Property(x => x.LocationName).IsRequired();
+            e.Property(x => x.ColorHex).IsRequired();
         });
     }
 }
