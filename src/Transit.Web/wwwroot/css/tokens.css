@@ -816,3 +816,78 @@
 .tr-sheet-preview--modal {
     max-height: 70vh;
 }
+
+/* ── Overview dashboard (/) ───────────────────────────────────────────────────
+   Ink board header anchors it; light .tr-card blocks hold the content.           */
+.tr-card {
+    background: var(--tr-surface);
+    border: 1px solid var(--tr-rail);
+    border-radius: var(--tr-radius);
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.tr-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.75rem;
+}
+
+.tr-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.tr-metric__num {
+    font-family: var(--tr-font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: var(--tr-text);
+}
+
+.tr-metric__label {
+    font-family: var(--tr-font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--tr-muted);
+}
+
+.tr-metric--warn .tr-metric__num {
+    color: var(--tr-signal-ink);
+    background: var(--tr-signal);
+    border-radius: var(--tr-radius-sm);
+    padding: 0 0.35rem;
+}
+
+.tr-breakdown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    align-items: center;
+}
+
+.tr-breakdown__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--tr-text);
+}
+
+.tr-breakdown__count {
+    font-family: var(--tr-font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--tr-muted);
+}
+
+/* Signal-amber variant of the standing note, for time-sensitive nudges. */
+.tr-note--signal {
+    border-style: solid;
+    border-color: var(--tr-signal);
+    box-shadow: inset 0 0 0 1px var(--tr-signal);
+}

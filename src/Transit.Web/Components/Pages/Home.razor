@@ -1,7 +1,228 @@
 ﻿@page "/"
+@rendermode InteractiveServer
+@using Transit.Core.Abstractions
+@using Transit.Core.Declarations
+@using Transit.Core.Entities
+@using Transit.Core.Services
+@inject DeclarationService Declarations
+@inject DeclarationHistoryService HistoryService
+@inject ITemplateProfileStore Profiles
+@inject LocationService Locations
+@inject RouteService Routes
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Overview</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="tr-stack">
+    <header class="tr-board">
+        <div>
+            <div class="tr-board__eyebrow">Overview</div>
+            <h1 class="tr-board__month">@_monthLabel</h1>
+        </div>
+        <nav class="tr-board__nav" aria-label="Quick actions">
+            <a class="tr-ctrl" href="attendance">Mark attendance</a>
+            <a class="tr-ctrl tr-ctrl--now" href="declaration">Review &amp; generate</a>
+        </nav>
+    </header>
 
-Welcome to your new app.
+    @if (_draft is not null)
+    {
+        <div class="tr-card">
+            <div class="tr-section-eyebrow">This month</div>
+            <div class="tr-metrics">
+                <div class="tr-metric">
+                    <span class="tr-metric__num">@_travelDays</span>
+                    <span class="tr-metric__label">Travel days</span>
+                </div>
+                <div class="tr-metric">
+                    <span class="tr-metric__num">@_wfhDays</span>
+                    <span class="tr-metric__label">WFH / non-travel</span>
+                </div>
+                <div class="tr-metric">
+                    <span class="tr-metric__num">@_unmarked</span>
+                    <span class="tr-metric__label">Unmarked</span>
+                </div>
+                @if (_noRoute > 0)
+                {
+                    <div class="tr-metric tr-metric--warn">
+                        <span class="tr-metric__num">@_noRoute</span>
+                        <span class="tr-metric__label">No route</span>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (_previousUndeclared)
+        {
+            <p class="tr-note tr-note--signal">
+                <span class="tr-note__key">To do</span>
+                <span>@_previousLabel is not declared yet. <a href="declaration">Review &amp; generate</a>.</span>
+            </p>
+        }
+
+        <div class="tr-card">
+            <div class="tr-section-eyebrow">This month by line</div>
+            <div class="tr-breakdown">
+                @foreach (var item in _breakdown)
+                {
+                    <span class="tr-breakdown__item">
+                        <span class="tr-bullet @(item.CountsAsTravel ? "" : "tr-bullet--outline")"
+                              style="--bullet-color:@item.ColorHex;--bullet-fg:@ContrastText(item.ColorHex)">@Initial(item.Name)</span>
+                        <span>@item.Name</span>
+                        <span class="tr-breakdown__count">@item.Count</span>
+                    </span>
+                }
+                @if (_unmarked > 0)
+                {
+                    <span class="tr-breakdown__item">
+                        <span>unmarked</span>
+                        <span class="tr-breakdown__count">@_unmarked</span>
+                    </span>
+                }
+            </div>
+        </div>
+    }
+
+    @if (_latestRuns.Count > 0)
+    {
+        <div class="tr-card">
+            <div class="tr-section-eyebrow">Recent declarations</div>
+            <div class="tr-line-list">
+                @foreach (var run in _latestRuns)
+                {
+                    <div class="tr-line-row">
+                        <span class="tr-run__period">@PeriodLabel(run)</span>
+                        <span class="tr-run__meta">@run.TravelDayCount travel days</span>
+                        <span class="tr-line-row__spacer"></span>
+                        <span class="tr-line-row__actions">
+                            <MudIconButton Icon="@Icons.Material.Filled.TableChart" Size="Size.Small"
+                                           title="Download xlsx" OnClick="() => Download(run, ArtifactKind.Xlsx)" />
+                            @if (run.HasPdf)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Size="Size.Small"
+                                               title="Download pdf" OnClick="() => Download(run, ArtifactKind.Pdf)" />
+                            }
+                        </span>
+                    </div>
+                }
+            </div>
+            <a class="tr-section-eyebrow" href="history">→ all history</a>
+        </div>
+    }
+
+    <div class="tr-card">
+        <div class="tr-section-eyebrow">Setup</div>
+        @if (!_activeTemplate)
+        {
+            <p class="tr-note tr-note--signal">
+                <span class="tr-note__key">Blocked</span>
+                <span>No active template — <a href="template">set one up</a> before generating.</span>
+            </p>
+        }
+        <p class="tr-note">
+            <span class="tr-note__key">OK</span>
+            <span>@_locationCount locations · @_routeCount routes@(_activeTemplate ? " · template active" : "")</span>
+        </p>
+    </div>
+</div>
+
+@code {
+    private readonly int _year = DateTime.Today.Year;
+    private readonly int _month = DateTime.Today.Month;
+
+    private DeclarationDraft? _draft;
+    private int _travelDays;
+    private int _wfhDays;
+    private int _unmarked;
+    private int _noRoute;
+
+    private bool _previousUndeclared;
+    private string _previousLabel = "";
+
+    private List<BreakdownItem> _breakdown = [];
+    private List<DeclarationRunSummary> _latestRuns = [];
+
+    private bool _activeTemplate;
+    private int _locationCount;
+    private int _routeCount;
+
+    private string _monthLabel => new DateOnly(_year, _month, 1).ToString("MMMM yyyy");
+
+    protected override async Task OnInitializedAsync()
+    {
+        _draft = await Declarations.BuildDraftAsync(_year, _month);
+        _travelDays = _draft.Rows.Count(r => r.CountsAsTravel);
+        _wfhDays = _draft.Rows.Count(r => !r.CountsAsTravel && !r.IsUnmarkedDefault);
+        _unmarked = _draft.Rows.Count(r => r.IsUnmarkedDefault);
+        _noRoute = _draft.Rows.Count(r => r.CountsAsTravel && r.HasNoRoute);
+
+        _breakdown = _draft.Rows
+            .Where(r => !r.IsUnmarkedDefault)
+            .GroupBy(r => (r.LocationName, r.ColorHex, r.CountsAsTravel))
+            .Select(g => new BreakdownItem(g.Key.LocationName, g.Key.ColorHex, g.Key.CountsAsTravel, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ToList();
+
+        var summaries = await HistoryService.GetSummariesAsync();
+        _latestRuns = summaries.Take(3).ToList();
+
+        var prev = new DateOnly(_year, _month, 1).AddMonths(-1);
+        _previousLabel = prev.ToString("MMMM yyyy");
+        _previousUndeclared = !summaries.Any(s => s.PeriodYear == prev.Year && s.PeriodMonth == prev.Month);
+
+        _activeTemplate = await Profiles.GetActiveAsync() is not null;
+        _locationCount = (await Locations.GetActiveAsync()).Count;
+        _routeCount = (await Routes.GetAllAsync()).Count;
+    }
+
+    private async Task Download(DeclarationRunSummary run, ArtifactKind kind)
+    {
+        try
+        {
+            var bytes = await HistoryService.OpenArtifactAsync(run.Id, kind);
+            var ext = kind == ArtifactKind.Pdf ? "pdf" : "xlsx";
+            var name = $"declaration-{run.PeriodYear:D4}-{run.PeriodMonth:D2}.{ext}";
+            using var stream = new MemoryStream(bytes);
+            using var streamRef = new DotNetStreamReference(stream);
+            await JS.InvokeVoidAsync("transitDownloadFromStream", name, streamRef);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private static string PeriodLabel(DeclarationRunSummary run)
+        => new DateOnly(run.PeriodYear, run.PeriodMonth, 1).ToString("yyyy · MMM").ToUpperInvariant();
+
+    private static string Initial(string name)
+        => string.IsNullOrEmpty(name) ? "?" : name[..1].ToUpperInvariant();
+
+    private static string ContrastText(string hex)
+    {
+        if (!TryParseHex(hex, out var r, out var g, out var b))
+        {
+            return "#FFFFFF";
+        }
+
+        var luminance = ((0.299 * r) + (0.587 * g) + (0.114 * b)) / 255.0;
+        return luminance > 0.6 ? "#1A1F2B" : "#FFFFFF";
+    }
+
+    private static bool TryParseHex(string hex, out int r, out int g, out int b)
+    {
+        r = g = b = 0;
+        var value = hex.TrimStart('#');
+        if (value.Length != 6)
+        {
+            return false;
+        }
+
+        return int.TryParse(value.AsSpan(0, 2), System.Globalization.NumberStyles.HexNumber, null, out r)
+            && int.TryParse(value.AsSpan(2, 2), System.Globalization.NumberStyles.HexNumber, null, out g)
+            && int.TryParse(value.AsSpan(4, 2), System.Globalization.NumberStyles.HexNumber, null, out b);
+    }
+
+    private sealed record BreakdownItem(string Name, string ColorHex, bool CountsAsTravel, int Count);
+}
