@@ -1,0 +1,114 @@
+@page "/history"
+@rendermode InteractiveServer
+@using Transit.Core.Declarations
+@using Transit.Core.Services
+@inject DeclarationHistoryService HistoryService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>History</PageTitle>
+
+<div class="tr-stack">
+    <header class="tr-board">
+        <div>
+            <div class="tr-board__eyebrow">History</div>
+            <h1 class="tr-board__month">Declarations</h1>
+        </div>
+    </header>
+
+    @if (_runs.Count == 0)
+    {
+        <p class="tr-note">
+            <span class="tr-note__key">Empty</span>
+            <span>No declarations generated yet — generate one from the <a href="declaration">Declaration</a> page.</span>
+        </p>
+    }
+    else
+    {
+        <div class="tr-line-list">
+            @foreach (var run in _runs)
+            {
+                <div class="tr-line-row">
+                    <span class="tr-run__period">@PeriodLabel(run)</span>
+                    <span class="tr-run__meta">
+                        generated @run.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+                        · @run.TemplateName
+                        · @run.TravelDayCount travel days
+                    </span>
+                    @if (!run.HasPdf)
+                    {
+                        <span class="tr-tag">xlsx only</span>
+                    }
+                    <span class="tr-line-row__spacer"></span>
+                    <span class="tr-line-row__actions">
+                        <MudIconButton Icon="@Icons.Material.Filled.TableChart" Size="Size.Small"
+                                       title="Download xlsx" OnClick="() => Download(run, ArtifactKind.Xlsx)" />
+                        @if (run.HasPdf)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Size="Size.Small"
+                                           title="Download pdf" OnClick="() => Download(run, ArtifactKind.Pdf)" />
+                        }
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                       title="Delete run" OnClick="() => Delete(run)" />
+                    </span>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<DeclarationRunSummary> _runs = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _runs = [.. await HistoryService.GetSummariesAsync()];
+
+    private static string PeriodLabel(DeclarationRunSummary run)
+        => new DateOnly(run.PeriodYear, run.PeriodMonth, 1).ToString("yyyy · MMM").ToUpperInvariant();
+
+    private async Task Download(DeclarationRunSummary run, ArtifactKind kind)
+    {
+        try
+        {
+            var bytes = await HistoryService.OpenArtifactAsync(run.Id, kind);
+            var ext = kind == ArtifactKind.Pdf ? "pdf" : "xlsx";
+            var name = $"declaration-{run.PeriodYear:D4}-{run.PeriodMonth:D2}.{ext}";
+            await DownloadAsync(name, bytes);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task Delete(DeclarationRunSummary run)
+    {
+        var parameters = new DialogParameters<MudMessageBox>
+        {
+            { x => x.Title, "Delete declaration" },
+            { x => x.Message, $"Delete the {PeriodLabel(run)} run? Its files are removed too. This cannot be undone." },
+            { x => x.YesText, "Delete" },
+            { x => x.CancelText, "Cancel" },
+        };
+        var dialog = await DialogService.ShowAsync<MudMessageBox>(string.Empty, parameters);
+        var result = await dialog.Result;
+        var confirmed = result is not null && !result.Canceled && result.Data as bool? == true;
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await HistoryService.DeleteAsync(run.Id);
+        Snackbar.Add("Declaration deleted.", Severity.Normal);
+        await LoadAsync();
+    }
+
+    private async Task DownloadAsync(string fileName, byte[] bytes)
+    {
+        using var stream = new MemoryStream(bytes);
+        using var streamRef = new DotNetStreamReference(stream);
+        await JS.InvokeVoidAsync("transitDownloadFromStream", fileName, streamRef);
+    }
+}

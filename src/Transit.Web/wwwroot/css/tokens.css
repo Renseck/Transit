@@ -779,3 +779,19 @@
     background: color-mix(in srgb, var(--tr-ink) 6%, var(--tr-surface));
     border-color: var(--tr-ink);
 }
+
+/* ── Declaration history (/history page) ──────────────────────────────────────
+   Reuses .tr-line-row from /locations; a mono period headline + a muted meta line. */
+.tr-run__period {
+    flex: none;
+    font-family: var(--tr-font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.9rem;
+    letter-spacing: 0.06em;
+    color: var(--tr-text);
+}
+
+.tr-run__meta {
+    font-size: 0.82rem;
+    color: var(--tr-muted);
+}
