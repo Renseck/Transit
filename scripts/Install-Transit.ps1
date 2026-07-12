@@ -176,6 +176,23 @@ function Set-TransitFolders {
     Add-Summary "Granted '$PoolIdent' Modify on $DataRoot"
 }
 
+function New-TransitSite {
+    Write-Phase "Website '$SiteName'"
+    if (-not (Test-Path "IIS:\Sites\$SiteName")) {
+        New-Website -Name $SiteName -PhysicalPath $PublishDir -Port $Port -ApplicationPool $AppPool | Out-Null
+        Add-Summary "Created website '$SiteName' on port $Port"
+        return
+    }
+    Write-Info "Website '$SiteName' already exists; reconciling pool, path, and binding."
+    Set-ItemProperty "IIS:\Sites\$SiteName" -Name applicationPool -Value $AppPool
+    Set-ItemProperty "IIS:\Sites\$SiteName" -Name physicalPath   -Value $PublishDir
+    $hasBinding = Get-WebBinding -Name $SiteName -Port $Port -Protocol http -ErrorAction SilentlyContinue
+    if (-not $hasBinding) {
+        New-WebBinding -Name $SiteName -Protocol http -Port $Port -IPAddress '*'
+        Add-Summary "Added http binding on port $Port to '$SiteName'"
+    }
+}
+
 # --- Main -----------------------------------------------------------------
 Write-Phase 'Transit installer starting'
 Write-Info  "Repo root:   $RepoRoot"
@@ -189,3 +206,4 @@ Install-LibreOffice
 Import-Module WebAdministration
 New-TransitAppPool
 Set-TransitFolders
+New-TransitSite
