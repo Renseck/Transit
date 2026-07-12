@@ -34,6 +34,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IPdfConverter, LibreOfficePdfConverter>();
         services.AddScoped<IArtifactStore, FileSystemArtifactStore>();
         services.AddScoped<IDeclarationRunStore, SqliteDeclarationRunStore>();
+        services.AddScoped<ISheetPreviewReader, ClosedXmlSheetPreviewReader>();
         services.AddScoped<LocationService>();
         services.AddScoped<RouteService>();
         services.AddScoped<DeclarationService>();
