@@ -193,6 +193,33 @@ function New-TransitSite {
     }
 }
 
+function Invoke-TestGate {
+    Write-Phase 'Test gate'
+    Write-Info "Running: dotnet test $TestProj"
+    & dotnet test $TestProj
+    if ($LASTEXITCODE -ne 0) {
+        throw "Tests failed (exit $LASTEXITCODE). Aborting before publish - the deployed site is untouched."
+    }
+    Write-Info 'Tests green.'
+}
+
+function Publish-Transit {
+    Write-Phase 'Publish'
+    if ((Get-WebAppPoolState -Name $AppPool).Value -ne 'Stopped') {
+        Write-Info "Stopping app pool '$AppPool'..."
+        Stop-WebAppPool -Name $AppPool
+    }
+    Write-Info "Publishing to $PublishDir ..."
+    & dotnet publish $WebProj -c Release -o $PublishDir
+    $publishExit = $LASTEXITCODE
+    Write-Info "Starting app pool '$AppPool'..."
+    Start-WebAppPool -Name $AppPool
+    if ($publishExit -ne 0) {
+        throw "dotnet publish failed (exit $publishExit). App pool restarted on the previous files."
+    }
+    Add-Summary "Published Transit to $PublishDir"
+}
+
 # --- Main -----------------------------------------------------------------
 Write-Phase 'Transit installer starting'
 Write-Info  "Repo root:   $RepoRoot"
@@ -207,3 +234,5 @@ Import-Module WebAdministration
 New-TransitAppPool
 Set-TransitFolders
 New-TransitSite
+Invoke-TestGate
+Publish-Transit
