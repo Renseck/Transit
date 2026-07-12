@@ -527,3 +527,139 @@
     color: var(--tr-muted);
     margin: 0.5rem 0 0.25rem;
 }
+
+/* ── Route connection (/routes page) ──────────────────────────────────────────
+   Two line bullets joined by a short track with an arrowhead: From → To.        */
+.tr-connection {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: none;
+}
+
+.tr-connection__track {
+    position: relative;
+    width: 1.4rem;
+    height: 2px;
+    background: var(--tr-rail-strong);
+}
+
+.tr-connection__track::after {
+    content: "";
+    position: absolute;
+    right: -1px;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    border-top: 2px solid var(--tr-rail-strong);
+    border-right: 2px solid var(--tr-rail-strong);
+    transform: translateY(-50%) rotate(45deg);
+}
+
+/* Km legs — mono figures on route rows (outbound / return / total). */
+.tr-legs {
+    display: inline-flex;
+    gap: 0.75rem;
+    font-family: var(--tr-font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8rem;
+    color: var(--tr-muted);
+}
+
+.tr-legs__total {
+    color: var(--tr-text);
+    font-weight: 600;
+}
+
+/* ── Declaration review grid (/declaration page) ──────────────────────────────
+   date · location · route · km, one row per day.                                */
+.tr-decl-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.tr-decl-head,
+.tr-decl-row {
+    display: grid;
+    grid-template-columns: 9rem 1fr 1fr 5.5rem;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.tr-decl-head {
+    padding: 0 0.75rem;
+}
+
+.tr-decl-head__cell {
+    font-family: var(--tr-font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--tr-muted);
+}
+
+.tr-decl-head__cell--km {
+    text-align: right;
+}
+
+.tr-decl-row {
+    padding: 0.5rem 0.75rem;
+    background: var(--tr-surface);
+    border: 1px solid var(--tr-rail);
+    border-radius: var(--tr-radius-sm);
+}
+
+/* Non-travel days are shown but quiet — they never reach the sheet. */
+.tr-decl-row--nontravel {
+    background: var(--tr-paper);
+}
+
+/* A travel day with no matching route: flagged, km stuck at 0 until a route exists. */
+.tr-decl-row--noroute {
+    border-color: var(--tr-signal);
+    box-shadow: inset 0 0 0 1px var(--tr-signal);
+}
+
+.tr-decl-row__date {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+    font-family: var(--tr-font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8rem;
+    color: var(--tr-text);
+}
+
+.tr-decl-row__weekday {
+    font-size: 0.64rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--tr-muted);
+}
+
+.tr-decl-row__loc {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tr-decl-row__km {
+    font-family: var(--tr-font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--tr-text);
+}
+
+.tr-decl-row__flag {
+    justify-self: end;
+    font-family: var(--tr-font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--tr-signal-ink);
+    background: var(--tr-signal);
+    border-radius: 999px;
+    padding: 0.1rem 0.45rem;
+    line-height: 1.4;
+}
