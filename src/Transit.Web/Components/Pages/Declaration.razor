@@ -234,16 +234,17 @@
         _generating = true;
         try
         {
-            var result = await Generation.GenerateAsync(_year, _month);
+            var result = await Generation.GenerateAsync(_year, _month, _routeOverride);
             await DownloadAsync(result.XlsxFileName, result.XlsxBytes);
 
             if (result.PdfBytes is not null)
             {
                 await DownloadAsync(result.PdfFileName, result.PdfBytes);
+                Snackbar.Add("Generated and saved to History.", Severity.Success);
             }
             else
             {
-                Snackbar.Add("Generated the spreadsheet, but PDF conversion was unavailable (check LibreOffice).", Severity.Warning);
+                Snackbar.Add("Saved to History as xlsx-only — PDF conversion was unavailable (check LibreOffice).", Severity.Warning);
             }
         }
         catch (InvalidOperationException ex)
