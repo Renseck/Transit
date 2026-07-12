@@ -101,9 +101,13 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
   `TemplateProfile`, preserving formatting and formulas.
 - `IPdfConverter` → `LibreOfficePdfConverter` — invoke `soffice --headless --convert-to pdf`.
 - `ITemplateProfileStore` — persist template file + mappings; select active.
-- `IArtifactStore` — write/read generated files on disk; hand back paths.
-- `DeclarationService` — orchestrates pull → default unmarked → compute km → write xlsx →
-  convert pdf → persist run + artifacts.
+- `IArtifactStore` → `FileSystemArtifactStore` — write/read/delete generated files under
+  `generated\{yyyy-MM}\{runId}\`; hand back paths.
+- `IDeclarationRunStore` → `SqliteDeclarationRunStore` — run metadata + frozen rows (DB only).
+- `DeclarationHistoryService` — owns the run+artifact lifecycle (save, list, open, delete),
+  coordinating the two stores above.
+- `GenerationService` — active profile → reviewed draft (defaults + route overrides) → write xlsx →
+  convert pdf → persist an append-only run + artifacts.
 
 ### Persistence
 
@@ -148,12 +152,17 @@ CellMapping
   Value   : string? // for Custom / static overrides
 
 DeclarationRun
-  Id, PeriodYear, PeriodMonth, TemplateProfileId, CreatedUtc
-  Rows : DeclarationRow[]   // frozen snapshot as generated
+  Id, PeriodYear, PeriodMonth,
+  TemplateProfileId, TemplateName,        // TemplateName frozen — survives profile rename/delete
+  CreatedUtc,
+  XlsxFilePath, PdfFilePath?              // PdfFilePath null on an xlsx-only run (PDF conversion failed)
+  Rows : DeclarationRow[]                 // ALL reviewed rows frozen (travel + non-travel)
 
-DeclarationRow
-  Date, WorkLocationId, LocationName, CountsAsTravel,
-  RouteId?, RouteName, OutboundKm, ReturnKm, Kilometers
+DeclarationRow                            // frozen DeclarationDraftRow + FK
+  Date, WeekdayName, WorkLocationId, LocationName, ColorHex, CountsAsTravel, IsUnmarkedDefault,
+  RouteId?, RouteName?,                    // RouteName frozen as a string
+  FromLocationName?, FromPostcode?, ToLocationName?, ToPostcode?,
+  OutboundKm, ReturnKm, Kilometers, HasNoRoute
 ```
 
 **Km rule:** travel day (`CountsAsTravel`) → chosen route's `TotalKm`
@@ -201,9 +210,11 @@ monthly total — the template's own `SUM` owns it. When a month has more travel
 signature block below shifts down. Profiles are versioned; one is active. A dry-run preview
 highlights the cells the active mapping would write, on the config page.
 
-**Generation is ephemeral in slice 4:** `GenerationService` orchestrates active-profile → draft
-→ fill xlsx → convert pdf and streams both files to the browser; nothing generated is persisted.
-Durable artifacts and run history land in slice 5 (`IArtifactStore`, `DeclarationRun`).
+**Generation is durable and append-only (slice 5):** `GenerationService` orchestrates active-profile
+→ reviewed draft (defaults + the review grid's route overrides) → fill xlsx → convert pdf, then
+`DeclarationHistoryService` persists a new `DeclarationRun` (frozen rows) and writes the artifacts
+under `generated\`. The bytes still stream to the browser; re-running a month makes another run and
+never overwrites history. A PDF-conversion failure yields an xlsx-only run.
 
 ## 7. PDF conversion
 
@@ -241,10 +252,11 @@ re-running a month creates a new run and new artifacts; it never overwrites hist
 - LibreOffice installed locally for conversion.
 - **No external network dependency and no secrets** — the app is fully self-contained.
 
-**Durability note (important):** the laptop's `App_Data` is now the *only* copy of your
-attendance history and generated declarations. Back it up — a scheduled copy or a sync of the
-`App_Data` folder to another machine — so a laptop failure or reimage doesn't lose months of
-records.
+**Durability note (important):** `DataRoot` (`app.db` + `templates\` + `generated\`) is now the
+*only* copy of your attendance history **and your signed-declaration history** — `generated\` holds
+every run's `.xlsx`/`.pdf`. Back up the whole `DataRoot` folder (a scheduled copy or a sync to
+another machine) so a laptop failure or reimage doesn't lose months of records. There is no in-app
+backup — it is a folder-level responsibility.
 
 ## 10. Key decisions
 
@@ -269,6 +281,11 @@ records.
 | Row overflow | Auto-insert rows inside the SUM range | Fits any month; format-agnostic per the generic mapping goal | Cap+warn (blocks heavy months); capacity as setting (deferred) |
 | Slice-4 generation | Ephemeral generate + download only | Clean 4/5 boundary; all persistence lands together in slice 5 | Persist artifacts now (orphan files); full run now (crosses boundary) |
 | Generation orchestration | New `GenerationService` | Keeps the pure builder/orchestrator split intact | Fold into `DeclarationService` (entangles concerns) |
+| Generate persistence | Always persist an append-only run | History is the record of every generation; a save-later state risks an unrecorded filing | Separate save action; persist-without-auto-download |
+| PDF-conversion failure | Persist an xlsx-only run, no retry | The xlsx is the valuable, signable artifact; keeps runs write-once | Regenerate-PDF-in-place (mutates a run); fail the whole generate |
+| Run lifecycle | Immutable content + manual hard-delete (confirm), no auto-prune | Append-only holds; a mistaken run is still removable; auto-deleting a compliance record is dangerous | Fully immutable; delete + retention policy |
+| Reviewed rows at generation | Thread the grid's route overrides into generation | Makes "freeze the reviewed rows" literally true; closes the slice-4 gap | Server-rebuild from defaults; persist overrides per day |
+| History coordination | A `DeclarationHistoryService` over two dumb stores | One tested place owns DB-and-disk; page + generator stay thin | Fold into `GenerationService`; page coordinates both stores |
 
 ## 11. Cross-cutting concerns
 
@@ -303,20 +320,22 @@ pairs, per-destination default), and the template km-column layout + header fiel
 The app is built in vertical slices, each its own spec → plan → implementation cycle and each
 producing working, testable software on its own. Specs live in `docs/superpowers/specs/`.
 
-1. **Foundation + minimal capture** — four-project restructure, EF Core + SQLite at
+1. **Foundation + minimal capture** *(done)* — four-project restructure, EF Core + SQLite at
    `C:\ProgramData\Transit\`, MudBlazor, and a brush-model attendance calendar that persists
    marks. The walking skeleton that exercises the whole stack end-to-end.
-2. **Attendance capture (full)** — `WorkLocation` CRUD (`LocationService` write side), brush
+2. **Attendance capture (full)** *(done)* — `WorkLocation` CRUD (`LocationService` write side), brush
    polish, and a design language established via `/frontend-design` (MudBlazor theme tokens)
    that sets the visual vocabulary for every later page.
-3. **Routes + declaration review** — `Route` / `RouteService`, `DeclarationService`
+3. **Routes + declaration review** *(done)* — `Route` / `RouteService`, `DeclarationService`
    (pull → default unmarked → km), and the editable review grid.
-4. **Template + Excel + PDF** *(current)* — `TemplateProfile` + `ITemplateProfileStore`,
+4. **Template + Excel + PDF** *(done)* — `TemplateProfile` + `ITemplateProfileStore`,
    `IExcelWriter` (ClosedXML), `IPdfConverter` (LibreOffice headless), `GenerationService`, the
    `/template` config page, and a Generate action that streams `.xlsx` / `.pdf` (ephemeral —
    nothing persisted).
-5. **History** — `DeclarationRun` persistence, `IArtifactStore` + durable artifacts under
-   `generated\`, the history page, and `.xlsx` / `.pdf` re-downloads.
+5. **History** *(done)* — `DeclarationRun`/`DeclarationRow` persistence, `IArtifactStore` +
+   `FileSystemArtifactStore`, `IDeclarationRunStore`, `DeclarationHistoryService`, durable artifacts
+   under `generated\`, the `/history` page, and `.xlsx`/`.pdf` re-downloads. Generation is now
+   append-only; the reviewed grid's route overrides are threaded into generation.
 
 ## 14. Design language & theming
 

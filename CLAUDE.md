@@ -97,7 +97,8 @@ IRouteStore            // route CRUD + per-destination default swap        (Sqli
 IExcelWriter           // fill the template from a TemplateProfile         (ClosedXmlTemplateWriter)
 IPdfConverter          // xlsx -> pdf                                      (LibreOfficePdfConverter)
 ITemplateProfileStore  // persist template file + mappings, select active
-IArtifactStore         // read/write generated files on disk
+IArtifactStore         // read/write/delete generated files on disk         (FileSystemArtifactStore)
+IDeclarationRunStore   // run metadata + frozen rows                        (SqliteDeclarationRunStore)
 ```
 
 Interfaces live in `Core`; implementations in `Infrastructure`. Anything that touches the
@@ -125,8 +126,13 @@ filesystem, the database, or shells out goes behind one of these.
   active-profile → draft → xlsx → pdf. The `/template` page configures it; `/declaration`
   generates. **Slice 4 generation is ephemeral** — bytes stream to the browser, nothing is
   persisted yet.
-- **Generation is append-only (from slice 5).** Re-running a month makes a new `DeclarationRun`
-  and new artifacts; never overwrite history.
+- **Generation is append-only (slice 5, live).** Every Generate creates a new `DeclarationRun`
+  (all reviewed rows frozen; `TemplateName` frozen; `PdfFilePath` null on an xlsx-only run) plus new
+  artifacts under `generated\{yyyy-MM}\{runId}\`; re-running a month makes another run and never
+  overwrites history. `GenerationService` threads the review grid's route overrides into generation
+  and hands off to `DeclarationHistoryService` (over `IDeclarationRunStore` + `IArtifactStore`).
+  Runs are immutable; a run can be hard-deleted (with confirm) from `/history`, which removes both
+  the DB rows and the folder. No auto-retention. Backup is a folder-level sync of `DataRoot`.
 
 ## Careful zones
 
