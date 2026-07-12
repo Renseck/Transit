@@ -25,7 +25,10 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddScoped<IAttendanceStore, SqliteAttendanceStore>();
         services.AddScoped<ILocationStore, SqliteLocationStore>();
+        services.AddScoped<IRouteStore, SqliteRouteStore>();
         services.AddScoped<LocationService>();
+        services.AddScoped<RouteService>();
+        services.AddScoped<DeclarationService>();
 
         return services;
     }
