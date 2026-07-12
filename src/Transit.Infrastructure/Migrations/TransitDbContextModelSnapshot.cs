@@ -32,6 +32,40 @@ namespace Transit.Infrastructure.Migrations
                     b.ToTable("AttendanceEntries");
                 });
 
+            modelBuilder.Entity("Transit.Core.Entities.Route", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("FromLocationId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("OutboundKm")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ReturnKm")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ToLocationId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FromLocationId");
+
+                    b.HasIndex("ToLocationId");
+
+                    b.ToTable("Routes");
+                });
+
             modelBuilder.Entity("Transit.Core.Entities.WorkLocation", b =>
                 {
                     b.Property<int>("Id")
@@ -68,6 +102,21 @@ namespace Transit.Infrastructure.Migrations
                     b.HasOne("Transit.Core.Entities.WorkLocation", null)
                         .WithMany()
                         .HasForeignKey("WorkLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Transit.Core.Entities.Route", b =>
+                {
+                    b.HasOne("Transit.Core.Entities.WorkLocation", null)
+                        .WithMany()
+                        .HasForeignKey("FromLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Transit.Core.Entities.WorkLocation", null)
+                        .WithMany()
+                        .HasForeignKey("ToLocationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

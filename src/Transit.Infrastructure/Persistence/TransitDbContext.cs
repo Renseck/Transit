@@ -9,6 +9,7 @@ public sealed class TransitDbContext : DbContext
 
     public DbSet<WorkLocation> WorkLocations => Set<WorkLocation>();
     public DbSet<AttendanceEntry> AttendanceEntries => Set<AttendanceEntry>();
+    public DbSet<Route> Routes => Set<Route>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,6 +26,21 @@ public sealed class TransitDbContext : DbContext
             e.HasOne<WorkLocation>()
                 .WithMany()
                 .HasForeignKey(x => x.WorkLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Route>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).IsRequired();
+            e.Ignore(x => x.TotalKm);   // computed, never a column
+            e.HasOne<WorkLocation>()
+                .WithMany()
+                .HasForeignKey(x => x.FromLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<WorkLocation>()
+                .WithMany()
+                .HasForeignKey(x => x.ToLocationId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }
