@@ -159,6 +159,23 @@ function New-TransitAppPool {
     Write-Info "App pool '$AppPool' set to No Managed Code and started."
 }
 
+function Set-TransitFolders {
+    Write-Phase 'Folders + ACL'
+    foreach ($dir in @($DataRoot, $PublishDir)) {
+        if (-not (Test-Path $dir)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+            Add-Summary "Created folder: $dir"
+        } else {
+            Write-Info "Folder exists: $dir"
+        }
+    }
+    # Grant the app-pool identity Modify (object + container inherit) on the data root.
+    Write-Info "Granting Modify on $DataRoot to '$PoolIdent'..."
+    & icacls $DataRoot /grant "${PoolIdent}:(OI)(CI)M" /T | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "icacls grant on $DataRoot failed (exit $LASTEXITCODE)." }
+    Add-Summary "Granted '$PoolIdent' Modify on $DataRoot"
+}
+
 # --- Main -----------------------------------------------------------------
 Write-Phase 'Transit installer starting'
 Write-Info  "Repo root:   $RepoRoot"
@@ -171,3 +188,4 @@ Install-HostingBundle
 Install-LibreOffice
 Import-Module WebAdministration
 New-TransitAppPool
+Set-TransitFolders
