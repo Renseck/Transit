@@ -1,0 +1,101 @@
+@using Transit.Core.Entities
+
+<MudDialog>
+    <TitleContent>
+        <span class="tr-board__eyebrow">@(IsEdit ? "Edit route" : "Add route")</span>
+    </TitleContent>
+    <DialogContent>
+        <div class="tr-stack" style="gap:1rem;">
+            <MudSelect T="int" @bind-Value="_fromId" Label="From" Variant="Variant.Outlined" Disabled="IsEdit">
+                @foreach (var l in Locations)
+                {
+                    <MudSelectItem T="int" Value="l.Id">@l.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSelect T="int" @bind-Value="_toId" Label="To" Variant="Variant.Outlined" Disabled="IsEdit">
+                @foreach (var l in Locations)
+                {
+                    <MudSelectItem T="int" Value="l.Id">@l.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudTextField @bind-Value="_name" Label="Name (blank = &quot;From → To&quot;)"
+                          Variant="Variant.Outlined" Immediate="true" />
+
+            <MudNumericField T="decimal" @bind-Value="_outboundKm" Label="Outbound km (from → to)"
+                             Variant="Variant.Outlined" Min="0" Step="0.1M" />
+            <MudNumericField T="decimal" @bind-Value="_returnKm" Label="Return km (to → from)"
+                             Variant="Variant.Outlined" Min="0" Step="0.1M" />
+
+            <MudSwitch @bind-Value="_makeDefault" Color="Color.Primary" Disabled="@_isCurrentDefault"
+                       Label="@(_isCurrentDefault ? "This is the default for its destination" : "Make default for this destination")" />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">@(IsEdit ? "Save" : "Add")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    // Active locations offered as endpoints.
+    [Parameter] public IReadOnlyList<WorkLocation> Locations { get; set; } = [];
+
+    // When editing, the existing route; null when adding.
+    [Parameter] public Route? Existing { get; set; }
+
+    private int _fromId;
+    private int _toId;
+    private string _name = string.Empty;
+    private decimal _outboundKm;
+    private decimal _returnKm;
+    private bool _makeDefault;
+    private bool _isCurrentDefault;
+
+    private bool IsEdit => Existing is not null;
+
+    protected override void OnInitialized()
+    {
+        if (Existing is not null)
+        {
+            _fromId = Existing.FromLocationId;
+            _toId = Existing.ToLocationId;
+            _name = Existing.Name;
+            _outboundKm = Existing.OutboundKm;
+            _returnKm = Existing.ReturnKm;
+            _isCurrentDefault = Existing.IsDefault;
+            _makeDefault = Existing.IsDefault;
+            return;
+        }
+
+        if (Locations.Count > 0)
+        {
+            _fromId = Locations[0].Id;
+            _toId = Locations.Count > 1 ? Locations[1].Id : Locations[0].Id;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Save()
+    {
+        var name = string.IsNullOrWhiteSpace(_name) ? SuggestedName() : _name;
+        MudDialog.Close(DialogResult.Ok(
+            new RouteEditResult(name, _fromId, _toId, _outboundKm, _returnKm, _makeDefault && !_isCurrentDefault)));
+    }
+
+    private string SuggestedName()
+    {
+        var from = Locations.FirstOrDefault(l => l.Id == _fromId)?.Name ?? "?";
+        var to = Locations.FirstOrDefault(l => l.Id == _toId)?.Name ?? "?";
+        return $"{from} → {to}";
+    }
+
+    // Nested so it surfaces as RouteEditorDialog.RouteEditResult. FromId/ToId are ignored by
+    // the caller when editing (endpoints are fixed after creation).
+    public sealed record RouteEditResult(
+        string Name, int FromId, int ToId, decimal OutboundKm, decimal ReturnKm, bool MakeDefault);
+}
