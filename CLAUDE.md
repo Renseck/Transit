@@ -106,7 +106,8 @@ filesystem, the database, or shells out goes behind one of these.
 ## Domain rules
 
 - **Locations are user-defined** (`WorkLocation`), not a fixed enum. Each carries
-  `CountsAsTravel` and there is exactly one `IsDefaultForUnmarked` (Home).
+  `CountsAsTravel`, an optional `Postcode` (feeds the template's `van`/`naar` postcode columns),
+  and there is exactly one `IsDefaultForUnmarked` (Home).
 - **Km:** travel day → route `TotalKm` = `OutboundKm + ReturnKm` (outbound and return differ
   and are stored separately); non-travel day → `0`.
 - **Routes are directed between-location pairs** (`FromLocationId` → `ToLocationId`) with separate
@@ -117,8 +118,15 @@ filesystem, the database, or shells out goes behind one of these.
   editable rows in the review grid. Nothing is silently zeroed.
 - **Only `CountsAsTravel` rows are written to the sheet.** WFH/absent days never appear.
 - **Do not compute monthly totals.** The template's own `SUM` formula owns them.
-- **Generation is append-only.** Re-running a month makes a new `DeclarationRun` and new
-  artifacts; never overwrite history.
+- **Template + export (`TemplateProfile`).** `ITemplateProfileStore` persists the uploaded
+  `.xlsx` + its `ColumnMapping`/`CellMapping`s (one active profile). `ClosedXmlTemplateWriter`
+  fills the template in place (travel-only rows, auto-inserting rows past `DataRowCount` so the
+  `SUM` expands); `LibreOfficePdfConverter` makes the PDF. `GenerationService` orchestrates
+  active-profile → draft → xlsx → pdf. The `/template` page configures it; `/declaration`
+  generates. **Slice 4 generation is ephemeral** — bytes stream to the browser, nothing is
+  persisted yet.
+- **Generation is append-only (from slice 5).** Re-running a month makes a new `DeclarationRun`
+  and new artifacts; never overwrite history.
 
 ## Careful zones
 

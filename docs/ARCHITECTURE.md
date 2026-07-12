@@ -116,7 +116,8 @@ EF Core + **SQLite** for all metadata *and* the attendance system of record; the
 WorkLocation
   Id, Name, ColorHex,
   CountsAsTravel (bool),          // Office = true, Home = false
-  IsDefaultForUnmarked (bool)     // exactly one; Home
+  IsDefaultForUnmarked (bool),    // exactly one; Home
+  Postcode (string?)              // optional; feeds the template's van/naar postcode columns
 
 Route
   Id, Name
@@ -130,12 +131,14 @@ AttendanceEntry                   // one per explicitly-marked date; system of r
 
 TemplateProfile
   Id, Name, TemplateFilePath, SheetSelector (name or index),
-  DataStartRow (int), IsActive (bool), CreatedUtc
+  DataStartRow (int),                // first repeating-data row (8 for the Truston template)
+  DataRowCount (int),                // physical data rows present (15); writer inserts beyond this
+  IsActive (bool), CreatedUtc
   ColumnMappings : ColumnMapping[]   // repeating rows
   CellMappings   : CellMapping[]     // static header fields
 
 ColumnMapping
-  Field  : enum { Date, WeekdayName, Location, RouteName, OutboundKm, ReturnKm, Kilometers }
+  Field  : enum { Date, WeekdayName, FromLocation, ToLocation, FromPostcode, ToPostcode, RouteName, OutboundKm, ReturnKm, Kilometers }
   Column : string   // e.g. "A", "B"
   Format : string?  // e.g. "dd-MM-yyyy", "0.0"
 
@@ -165,7 +168,10 @@ review grid is editable and, until a run is generated (slice 4), in-memory only.
 
 **Declaration compute:** a pure `DeclarationBuilder` (Core, no I/O) materialises the rows, defaults
 unmarked days, resolves routes, and computes km; a thin `DeclarationService` loads attendance,
-locations (incl. archived), and routes, then delegates to it.
+locations (incl. archived), and routes, then delegates to it. Each `DeclarationDraftRow` also
+carries the resolved route's endpoint detail — `FromLocationName` / `FromPostcode` /
+`ToLocationName` / `ToPostcode` (null on non-travel and no-route rows) — so the Excel writer can
+fill the template's `van` / `naar` / postcode columns without re-querying locations.
 
 **Row generation & defaulting:** the review grid materialises every weekday of the period,
 plus any explicitly-marked weekend day. Dates with an `AttendanceEntry` use it; unmarked
@@ -178,18 +184,26 @@ the sheet.
 The writer must survive the employer changing the sheet layout, so mapping is data, not
 code. A `TemplateProfile` describes:
 
-- which **sheet** (`SheetSelector`) and which **row** the repeating data starts on
-  (`DataStartRow`);
+- which **sheet** (`SheetSelector`), which **row** the repeating data starts on
+  (`DataStartRow`), and how many physical data rows the template ships with (`DataRowCount`);
 - **column mappings** for the repeating rows — `Date` → col A, `Kilometers` (day total) → col
-  B, and optionally `WeekdayName`, `Location`, `RouteName`, and the individual `OutboundKm` /
-  `ReturnKm` legs — each with an optional format string;
+  F, `FromLocation` / `ToLocation` and their postcodes to the `van` / `naar` columns, and
+  optionally `WeekdayName`, `RouteName`, and the individual `OutboundKm` / `ReturnKm` legs —
+  each with an optional format string;
 - **cell mappings** for static header fields (month name, year, employee name, personnel
   number, or a custom literal) written to specific cells.
 
 `ClosedXmlTemplateWriter` **loads the uploaded template and writes into it** — it never
-rebuilds the workbook — so formatting, merged cells, and formulas are preserved. Profiles are
-versioned; one is active. A dry-run preview (which cells would be written) is a nice-to-have
-on the config page.
+rebuilds the workbook — so formatting, merged cells, and formulas are preserved. It writes
+**only `CountsAsTravel` rows** (WFH/absent days never reach the sheet) and never writes a
+monthly total — the template's own `SUM` owns it. When a month has more travel days than
+`DataRowCount`, it **inserts rows inside the data block** so the `SUM` range expands and the
+signature block below shifts down. Profiles are versioned; one is active. A dry-run preview
+highlights the cells the active mapping would write, on the config page.
+
+**Generation is ephemeral in slice 4:** `GenerationService` orchestrates active-profile → draft
+→ fill xlsx → convert pdf and streams both files to the browser; nothing generated is persisted.
+Durable artifacts and run history land in slice 5 (`IArtifactStore`, `DeclarationRun`).
 
 ## 7. PDF conversion
 
@@ -249,6 +263,12 @@ records.
 | Km model | Route `OutboundKm` + `ReturnKm` | Direction asymmetry (~1.6 km each way) | Single one-way ×2 (rejected: ignores asymmetry) |
 | Unmarked days | Default to designated location (Home), editable | Only travel days are declared; missing = WFH | Force-mark every day |
 | Totals | Left to template formulas | Survives template changes | Compute + write |
+| Km column layout | Single total-km column, one row per travel day | Matches the real Truston template (`aantal km`, 15-row block) | Outbound/return split (template has no split columns) |
+| Header fields | Employee name + month only | The real template has exactly these two | Personnel number / year cell / cost centre (not present) |
+| Postcode source | Optional `WorkLocation.Postcode` | Postcode belongs to a place; auto-fills `van`/`naar` | On `Route` (duplicates); unmapped (repetitive manual entry) |
+| Row overflow | Auto-insert rows inside the SUM range | Fits any month; format-agnostic per the generic mapping goal | Cap+warn (blocks heavy months); capacity as setting (deferred) |
+| Slice-4 generation | Ephemeral generate + download only | Clean 4/5 boundary; all persistence lands together in slice 5 | Persist artifacts now (orphan files); full run now (crosses boundary) |
+| Generation orchestration | New `GenerationService` | Keeps the pure builder/orchestrator split intact | Fold into `DeclarationService` (entangles concerns) |
 
 ## 11. Cross-cutting concerns
 
@@ -265,24 +285,25 @@ records.
    locations (`FromLocationId` → `ToLocationId`) with asymmetric legs and a per-destination
    default. This future-proofs multiple travel destinations without a schema change; the single
    office today is simply the one destination that has a route.
-2. **Km column layout** — does the employer template want the day's *total* km in one column,
-   or the outbound/return legs split across two? Fields exist for both; needs the real sheet.
-3. **Personal header fields** — which static fields does the template need (name, personnel
-   number, cost centre)?
+2. ~~**Km column layout.**~~ **Resolved (slice 4):** the real Truston template has a single
+   `aantal km` total column (col F) and a 15-row data block, so the writer emits **one row per
+   travel day** with the round-trip total km. No outbound/return split.
+3. ~~**Personal header fields.**~~ **Resolved (slice 4):** the template needs exactly two static
+   header fields — employee name and month. No personnel number, year cell, or cost centre.
 4. **Calendar toggle semantics** — clicking a day that already holds the active location
    clears it (assumed). Confirm that's the desired "undo" gesture.
 
 Resolved since the first draft: capture mechanism (in-app), reachability (n/a),
 one-way-vs-round-trip (now outbound + return), missing-day handling (default to Home,
-editable), and template row model (travel days only), and the routes model (directed
-between-location pairs, per-destination default).
+editable), template row model (travel days only), the routes model (directed between-location
+pairs, per-destination default), and the template km-column layout + header fields (slice 4).
 
 ## 13. Build order
 
 The app is built in vertical slices, each its own spec → plan → implementation cycle and each
 producing working, testable software on its own. Specs live in `docs/superpowers/specs/`.
 
-1. **Foundation + minimal capture** *(current)* — four-project restructure, EF Core + SQLite at
+1. **Foundation + minimal capture** — four-project restructure, EF Core + SQLite at
    `C:\ProgramData\Transit\`, MudBlazor, and a brush-model attendance calendar that persists
    marks. The walking skeleton that exercises the whole stack end-to-end.
 2. **Attendance capture (full)** — `WorkLocation` CRUD (`LocationService` write side), brush
@@ -290,9 +311,12 @@ producing working, testable software on its own. Specs live in `docs/superpowers
    that sets the visual vocabulary for every later page.
 3. **Routes + declaration review** — `Route` / `RouteService`, `DeclarationService`
    (pull → default unmarked → km), and the editable review grid.
-4. **Template + Excel + PDF** — `TemplateProfile`, `IExcelWriter` (ClosedXML), `IPdfConverter`
-   (LibreOffice headless), and the template / config page.
-5. **History** — `DeclarationRun` persistence, the history page, and `.xlsx` / `.pdf` downloads.
+4. **Template + Excel + PDF** *(current)* — `TemplateProfile` + `ITemplateProfileStore`,
+   `IExcelWriter` (ClosedXML), `IPdfConverter` (LibreOffice headless), `GenerationService`, the
+   `/template` config page, and a Generate action that streams `.xlsx` / `.pdf` (ephemeral —
+   nothing persisted).
+5. **History** — `DeclarationRun` persistence, `IArtifactStore` + durable artifacts under
+   `generated\`, the history page, and `.xlsx` / `.pdf` re-downloads.
 
 ## 14. Design language & theming
 
