@@ -46,8 +46,25 @@ function Write-Phase   { param([string]$Message) Write-Host "`n[Transit] == $Mes
 function Write-Info    { param([string]$Message) Write-Host "[Transit]    $Message" }
 function Add-Summary   { param([string]$Message) $script:Summary.Add($Message) | Out-Null; Write-Info $Message }
 
+function Invoke-Preflight {
+    Write-Phase 'Preflight'
+    if (-not (Test-Path $WebProj)) {
+        throw "Web project not found at '$WebProj'. Run this script from inside the cloned repo (scripts\Install-Transit.ps1)."
+    }
+    Write-Info "Found web project: $WebProj"
+
+    $conflict = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    if ($conflict) {
+        $owningPids = ($conflict.OwningProcess | Sort-Object -Unique) -join ', '
+        Write-Info "Note: port $Port already has a listener (PID(s): $owningPids). If that is a previous Transit deploy this is fine; otherwise free the port."
+    } else {
+        Write-Info "Port $Port is free."
+    }
+}
+
 # --- Main -----------------------------------------------------------------
 Write-Phase 'Transit installer starting'
 Write-Info  "Repo root:   $RepoRoot"
 Write-Info  "Publish dir: $PublishDir"
 Write-Info  "Data root:   $DataRoot"
+Invoke-Preflight
