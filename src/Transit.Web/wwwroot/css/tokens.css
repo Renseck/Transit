@@ -795,3 +795,24 @@
     font-size: 0.82rem;
     color: var(--tr-muted);
 }
+
+/* ── History row as a preview trigger ────────────────────────────────────────── */
+.tr-line-row--clickable {
+    cursor: pointer;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.tr-line-row--clickable:hover {
+    border-color: var(--tr-rail-strong);
+    box-shadow: inset 0 0 0 1px var(--tr-rail-strong);
+}
+
+.tr-line-row--clickable:focus-visible {
+    outline: 2px solid var(--tr-signal);
+    outline-offset: 2px;
+}
+
+/* The sheet preview inside a dialog: bound its height so long sheets scroll. */
+.tr-sheet-preview--modal {
+    max-height: 70vh;
+}

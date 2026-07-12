@@ -29,7 +29,8 @@
         <div class="tr-line-list">
             @foreach (var run in _runs)
             {
-                <div class="tr-line-row">
+                <div class="tr-line-row tr-line-row--clickable" role="button" tabindex="0"
+                     @onclick="() => OpenPreview(run)">
                     <span class="tr-run__period">@PeriodLabel(run)</span>
                     <span class="tr-run__meta">
                         generated @run.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")
@@ -41,7 +42,7 @@
                         <span class="tr-tag">xlsx only</span>
                     }
                     <span class="tr-line-row__spacer"></span>
-                    <span class="tr-line-row__actions">
+                    <span class="tr-line-row__actions" @onclick:stopPropagation="true">
                         <MudIconButton Icon="@Icons.Material.Filled.TableChart" Size="Size.Small"
                                        title="Download xlsx" OnClick="() => Download(run, ArtifactKind.Xlsx)" />
                         @if (run.HasPdf)
@@ -64,6 +65,17 @@
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task LoadAsync() => _runs = [.. await HistoryService.GetSummariesAsync()];
+
+    private Task OpenPreview(DeclarationRunSummary run)
+    {
+        var parameters = new DialogParameters<SheetPreviewDialog>
+        {
+            { x => x.RunId, run.Id },
+            { x => x.Title, PeriodLabel(run) },
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
+        return DialogService.ShowAsync<SheetPreviewDialog>(PeriodLabel(run), parameters, options);
+    }
 
     private static string PeriodLabel(DeclarationRunSummary run)
         => new DateOnly(run.PeriodYear, run.PeriodMonth, 1).ToString("yyyy · MMM").ToUpperInvariant();
