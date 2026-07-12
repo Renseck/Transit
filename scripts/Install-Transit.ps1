@@ -220,6 +220,36 @@ function Publish-Transit {
     Add-Summary "Published Transit to $PublishDir"
 }
 
+function Test-TransitSite {
+    Write-Phase 'Smoke check'
+    $url = "http://localhost:$Port"
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            $resp = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 15
+            Write-Info "$url responded HTTP $([int]$resp.StatusCode)."
+            return
+        } catch {
+            Write-Info "Attempt $attempt/5: site not ready yet ($($_.Exception.Message))."
+            Start-Sleep -Seconds 3
+        }
+    }
+    Write-Info "WARNING: $url did not respond after 5 attempts. Check the app pool and Windows Event Log."
+}
+
+function Write-Summary {
+    Write-Phase 'Done'
+    if ($script:Summary.Count -eq 0) {
+        Write-Info 'Nothing changed - everything was already in place.'
+    } else {
+        Write-Info 'Changes applied:'
+        $script:Summary | ForEach-Object { Write-Host "[Transit]      - $_" }
+    }
+    if ($script:RebootFlag) {
+        Write-Host "`n[Transit] A REBOOT IS PENDING. Reboot, then re-run this script to finish." -ForegroundColor Yellow
+    }
+    Write-Host "`n[Transit] Transit is at http://localhost:$Port" -ForegroundColor Green
+}
+
 # --- Main -----------------------------------------------------------------
 Write-Phase 'Transit installer starting'
 Write-Info  "Repo root:   $RepoRoot"
@@ -236,3 +266,5 @@ Set-TransitFolders
 New-TransitSite
 Invoke-TestGate
 Publish-Transit
+Test-TransitSite
+Write-Summary
