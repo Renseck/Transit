@@ -5,9 +5,9 @@ using Transit.Core.Entities;
 namespace Transit.Core.Services;
 
 /// <summary>
-/// Orchestrates a generate: active profile → month draft → fill xlsx → convert pdf. Persists
-/// nothing (slice 5 owns durable artifacts + run history). PDF failure is non-fatal — the xlsx
-/// is still returned with a null PdfBytes.
+/// Orchestrates a generate: active profile → reviewed draft (defaults + route overrides) → fill xlsx
+/// → convert pdf → persist an append-only run + its artifacts via <see cref="DeclarationHistoryService"/>.
+/// PDF failure is non-fatal — the xlsx is still returned and persisted with a null PdfBytes/PdfFilePath.
 /// </summary>
 public sealed class GenerationService
 {
@@ -15,23 +15,26 @@ public sealed class GenerationService
     private readonly DeclarationService _declarations;
     private readonly IExcelWriter _writer;
     private readonly IPdfConverter _pdf;
+    private readonly DeclarationHistoryService _history;
 
     public GenerationService(
         ITemplateProfileStore profiles, DeclarationService declarations,
-        IExcelWriter writer, IPdfConverter pdf)
+        IExcelWriter writer, IPdfConverter pdf, DeclarationHistoryService history)
     {
         _profiles = profiles;
         _declarations = declarations;
         _writer = writer;
         _pdf = pdf;
+        _history = history;
     }
 
-    public async Task<GeneratedDeclaration> GenerateAsync(int year, int month, CancellationToken ct = default)
+    public async Task<GeneratedDeclaration> GenerateAsync(
+        int year, int month, IReadOnlyDictionary<DateOnly, int?> routeSelections, CancellationToken ct = default)
     {
         var profile = await _profiles.GetActiveAsync(ct)
             ?? throw new InvalidOperationException("No active template. Set one up on the Template page first.");
 
-        var draft = await _declarations.BuildDraftAsync(year, month, ct);
+        var draft = await _declarations.BuildReviewedDraftAsync(year, month, routeSelections, ct);
 
         await using var templateBytes = await _profiles.OpenTemplateAsync(profile.Id, ct);
         var xlsx = await _writer.FillAsync(profile, templateBytes, draft, ct);
@@ -39,7 +42,9 @@ public sealed class GenerationService
         var stem = BuildFileStem(profile, year, month);
         var pdf = await TryConvertAsync(xlsx, ct);
 
-        return new GeneratedDeclaration(xlsx, pdf, $"{stem}.xlsx", $"{stem}.pdf");
+        var run = await _history.SaveAsync(draft, profile, xlsx, pdf, ct);
+
+        return new GeneratedDeclaration(xlsx, pdf, $"{stem}.xlsx", $"{stem}.pdf", run.Id);
     }
 
     // e.g. "declaration-RvE-2026-07"; drops the initials segment when no employee name is mapped.
