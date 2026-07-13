@@ -1,7 +1,7 @@
 # Transit
 
 A self-contained Blazor web application that automates the monthly commute-kilometre
-(woon-werkverkeer) declaration. It runs locally on your work laptop at `http://localhost:83`
+(woon-werkverkeer) declaration. It runs locally on your work laptop at `http://localhost:8083`, also accessible at `http://transit.local`,
 and handles the entire flow — from marking attendance day by day, through reviewing a travel
 route for each travel day, to filling the employer-provided Excel template and converting it
 to a signed-ready PDF.

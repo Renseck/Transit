@@ -31,7 +31,7 @@ $PublishDir = 'C:\inetpub\wwwroot\Transit'
 $DataRoot   = 'C:\ProgramData\Transit'
 $AppPool    = 'Transit'
 $SiteName   = 'transit'
-$Port       = 83
+$Port       = 8083
 $PoolIdent  = "IIS AppPool\$AppPool"
 $SdkUrl     = 'https://aka.ms/dotnet/10.0/dotnet-sdk-win-x64.exe'      # latest 10.0.x SDK
 $HostingUrl = 'https://aka.ms/dotnet/10.0/dotnet-hosting-win.exe'      # latest 10.0.x ASP.NET Core Hosting Bundle
@@ -264,6 +264,25 @@ Import-Module WebAdministration
 New-TransitAppPool
 Set-TransitFolders
 New-TransitSite
+
+# Hosts entry
+$hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+if (-not (Select-String -Path $hostsPath -Pattern 'transit\.local' -Quiet)) {
+    Add-Content -Path $hostsPath -Value "127.0.0.1`ttransit.local"
+    Add-Summary 'Added transit.local to hosts file'
+} else {
+    Write-Info 'transit.local already in hosts file.'
+}
+
+# Friendly IIS binding
+$hasHttp8083 = Get-WebBinding -Name $SiteName -Port 8083 -Protocol http -ErrorAction SilentlyContinue
+if (-not $hasHttp8083) {
+    New-WebBinding -Name $SiteName -Protocol http -Port 8083 -HostHeader 'transit.local'
+    Add-Summary 'Added http://transit.local binding (port 8083)'
+} else {
+    Write-Info 'transit.local binding already present.'
+}
+
 Invoke-TestGate
 Publish-Transit
 Test-TransitSite
