@@ -11,7 +11,7 @@ SQLite database and a folder on disk.
 
 ---
 
-![Attendance calendar — Transit's most distinctive screen](docs/screenshot-attendance.png)
+![Attendance calendar — Transit's most distinctive screen](assets/images/screenshot-attendance.png)
 
 *Attendance calendar — brush-paint your work location per day, then generate the declaration
 from the review grid.*
