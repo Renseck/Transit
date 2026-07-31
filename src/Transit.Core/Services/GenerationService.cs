@@ -47,15 +47,15 @@ public sealed class GenerationService
         return new GeneratedDeclaration(xlsx, pdf, $"{stem}.xlsx", $"{stem}.pdf", run.Id);
     }
 
-    // e.g. "declaration-RvE-2026-07"; drops the initials segment when no employee name is mapped.
+    // e.g. "07_2026_reiskosten_rve"; drops the initials segment when no employee name is mapped.
     private static string BuildFileStem(TemplateProfile profile, int year, int month)
     {
         var initials = DeriveInitials(profile);
-        var period = $"{year:D4}-{month:D2}";
-        return initials is null ? $"declaration-{period}" : $"declaration-{initials}-{period}";
+        var period = $"{month:D2}_{year:D4}";
+        return initials is null ? $"{period}_reiskosten" : $"{period}_reiskosten_{initials}";
     }
 
-    // Initials from the configured employee-name header cell: "Rens van Eck" -> "RvE".
+    // Initials from the configured employee-name header cell: "Rens van Eck" -> "rve".
     private static string? DeriveInitials(TemplateProfile profile)
     {
         var name = profile.CellMappings
@@ -68,7 +68,7 @@ public sealed class GenerationService
 
         var initials = string.Concat(
             name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(word => word[0]));
-        return initials.Length == 0 ? null : initials;
+        return initials.Length == 0 ? null : initials.ToLowerInvariant();
     }
 
     private async Task<byte[]?> TryConvertAsync(byte[] xlsx, CancellationToken ct)
