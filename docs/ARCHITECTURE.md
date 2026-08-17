@@ -256,6 +256,23 @@ re-running a month creates a new run and new artifacts; it never overwrites hist
 - ASP.NET Core Hosting Bundle installed; app published (framework-dependent is fine).
 - LibreOffice installed locally for conversion.
 - **No external network dependency and no secrets** — the app is fully self-contained.
+- 
+### Attendance reminder
+
+IIS hosts the app in Session 0 as a service account, which cannot raise Windows toast
+notifications. The reminder therefore lives in a desktop-session helper, not the app:
+
+- `GET /api/reminder/today-status` (loopback, no auth) returns
+  `{ date, explicitlyLogged }`. It reads `IAttendanceStore` for `[today, today]` and
+  decides via the pure `AttendanceStatus.IsExplicitlyLogged` — the silent Home-default
+  never counts as logged. The request also warms a cold app pool.
+- `scripts/Remind-Transit.ps1` runs in the interactive user session via two Scheduled
+  Tasks (logon +5 min, daily midday), registered by `Install-Transit.ps1`. It guards
+  weekends, polls the endpoint, and — if today is unlogged or the app is unreachable
+  (fail-open) — shows a BurntToast toast whose button opens `transit.local`.
+
+Configuration is by installer parameters (`-ReminderLogonDelayMinutes`,
+`-ReminderMiddayTime`, `-NoReminder`); there is no runtime config file.
 
 **Durability note (important):** `DataRoot` (`app.db` + `templates\` + `generated\`) is now the
 *only* copy of your attendance history **and your signed-declaration history** — `generated\` holds

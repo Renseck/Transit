@@ -8,7 +8,11 @@
   Targets Windows PowerShell 5.1 so it works before pwsh is installed.
 #>
 [CmdletBinding()]
-param()
+param(
+    [int]$ReminderLogonDelayMinutes = 5,
+    [string]$ReminderMiddayTime = '13:00',
+    [switch]$NoReminder
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -29,6 +33,8 @@ $WebProj    = Join-Path $RepoRoot 'src\Transit.Web\Transit.Web.csproj'
 $TestProj   = Join-Path $RepoRoot 'tests\Transit.Tests\Transit.Tests.csproj'
 $PublishDir = 'C:\inetpub\wwwroot\Transit'
 $DataRoot   = 'C:\ProgramData\Transit'
+$ReminderHelperSrc  = Join-Path $RepoRoot 'scripts\Remind-Transit.ps1'
+$ReminderHelperDest = Join-Path $DataRoot 'Remind-Transit.ps1'
 $AppPool    = 'Transit'
 $SiteName   = 'transit'
 $Port       = 8083
@@ -141,6 +147,55 @@ function Install-LibreOffice {
     & choco install libreoffice-still -y
     if ($LASTEXITCODE -ne 0) { throw "choco install libreoffice-still failed (exit $LASTEXITCODE)." }
     Add-Summary 'Installed LibreOffice (libreoffice-still)'
+}
+
+function Install-BurntToast {
+    Write-Phase 'BurntToast module'
+    if (Get-Module -ListAvailable -Name BurntToast) {
+        Write-Info 'BurntToast already installed.'
+        return
+    }
+    Write-Info 'Installing BurntToast from PSGallery...'
+    if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
+    }
+    Install-Module -Name BurntToast -Scope AllUsers -Force -AllowClobber
+    Add-Summary 'Installed BurntToast module'
+}
+
+function Set-ReminderTasks {
+    Write-Phase 'Reminder scheduled tasks'
+    $logonName  = 'Transit Reminder (Logon)'
+    $middayName = 'Transit Reminder (Midday)'
+
+    if ($NoReminder) {
+        foreach ($n in @($logonName, $middayName)) {
+            if (Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue) {
+                Unregister-ScheduledTask -TaskName $n -Confirm:$false
+                Add-Summary "Removed scheduled task '$n'"
+            }
+        }
+        return
+    }
+
+    Copy-Item -Path $ReminderHelperSrc -Destination $ReminderHelperDest -Force
+    Write-Info "Copied reminder helper to $ReminderHelperDest"
+
+    $taskUser  = "$env:USERDOMAIN\$env:USERNAME"
+    $argLine   = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$ReminderHelperDest`""
+    $action    = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $argLine
+    $principal = New-ScheduledTaskPrincipal -UserId $taskUser -LogonType Interactive -RunLevel Limited
+    $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+
+    $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $taskUser
+    $logonTrigger.Delay = "PT$($ReminderLogonDelayMinutes)M"
+    $middayTrigger = New-ScheduledTaskTrigger -Daily -At $ReminderMiddayTime
+
+    Register-ScheduledTask -TaskName $logonName -Action $action -Principal $principal `
+        -Settings $settings -Trigger $logonTrigger -Force | Out-Null
+    Register-ScheduledTask -TaskName $middayName -Action $action -Principal $principal `
+        -Settings $settings -Trigger $middayTrigger -Force | Out-Null
+    Add-Summary "Registered reminder tasks (logon +$ReminderLogonDelayMinutes min, daily $ReminderMiddayTime)"
 }
 
 function New-TransitAppPool {
@@ -286,4 +341,6 @@ if (-not $hasHttp8083) {
 Invoke-TestGate
 Publish-Transit
 Test-TransitSite
+if (-not $NoReminder) { Install-BurntToast }
+Set-ReminderTasks
 Write-Summary

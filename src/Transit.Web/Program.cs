@@ -5,6 +5,7 @@ using Transit.Infrastructure;
 using Transit.Infrastructure.Configuration;
 using Transit.Infrastructure.Persistence;
 using Transit.Web.Components;
+using Transit.Web.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,5 +44,6 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+app.MapReminderEndpoints();
 
 app.Run();
