@@ -5,6 +5,7 @@
 @using Transit.Core.Abstractions
 @using Transit.Core.Entities
 @inject ITemplateProfileStore Profiles
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <PageTitle>Template</PageTitle>
@@ -22,6 +23,39 @@
             </label>
         </nav>
     </header>
+
+    @if (_profiles.Count > 0)
+    {
+        <div class="tr-line-list tr-tpl-list">
+            @foreach (var p in _profiles)
+            {
+                var isLoaded = _profile?.Id == p.Id;
+                <div class="tr-line-row tr-line-row--clickable @(isLoaded ? "tr-line-row--current" : "")"
+                     role="button" tabindex="0" @onclick="() => SelectProfile(p)">
+                    <span class="tr-run__period">@p.Name</span>
+                    @if (p.IsActive)
+                    {
+                        <span class="tr-tag tr-chip--default">Active</span>
+                    }
+                    <span class="tr-line-row__spacer"></span>
+                    <span class="tr-line-row__actions" @onclick:stopPropagation="true">
+                        @if (!p.IsActive)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small"
+                                           title="Set active" OnClick="() => SetActive(p)" />
+                        }
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       title="Rename" OnClick="() => Rename(p)" />
+                        @if (!p.IsActive)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           title="Delete" OnClick="() => Delete(p)" />
+                        }
+                    </span>
+                </div>
+            }
+        </div>
+    }
 
     @if (_profile is null)
     {
@@ -100,7 +134,7 @@
                     <button type="button" class="tr-ctrl tr-ctrl--now" @onclick="SaveMappings">Save</button>
                     @if (!_profile.IsActive)
                     {
-                        <button type="button" class="tr-ctrl tr-ctrl--line" @onclick="SetActive">Set active</button>
+                        <button type="button" class="tr-ctrl tr-ctrl--line" @onclick="() => SetActive(_profile)">Set active</button>
                     }
                     else
                     {
@@ -148,6 +182,7 @@
     private const int PreviewCols = 7;   // A..G
 
     private TemplateProfile? _profile;
+    private List<TemplateProfile> _profiles = [];
     private string _sheetSelector = "";
     private int _dataStartRow = 1;
     private int _dataRowCount = 1;
@@ -160,12 +195,17 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var all = await Profiles.GetAllAsync();
-        _profile = all.FirstOrDefault(p => p.IsActive) ?? all.FirstOrDefault();
+        await ReloadProfilesAsync();
+        _profile = _profiles.FirstOrDefault(p => p.IsActive) ?? _profiles.FirstOrDefault();
         if (_profile is not null)
         {
             await LoadProfileAsync(_profile);
         }
+    }
+
+    private async Task ReloadProfilesAsync()
+    {
+        _profiles = [.. await Profiles.GetAllAsync()];
     }
 
     private async Task OnUpload(InputFileChangeEventArgs e)
@@ -274,15 +314,73 @@
         }
     }
 
-    private async Task SetActive()
+    private async Task SelectProfile(TemplateProfile p)
     {
-        if (_profile is null)
+        _profile = p;
+        await LoadProfileAsync(p);
+    }
+
+    private async Task SetActive(TemplateProfile p)
+    {
+        await Profiles.SetActiveAsync(p.Id);
+        await ReloadProfilesAsync();
+        _profile = _profiles.FirstOrDefault(x => x.Id == p.Id) ?? _profile;
+        Snackbar.Add("Template set active.", Severity.Success);
+    }
+
+    private async Task Rename(TemplateProfile p)
+    {
+        var parameters = new DialogParameters<RenameDialog>
+        {
+            { x => x.InitialName, p.Name },
+        };
+        var dialog = await DialogService.ShowAsync<RenameDialog>("Rename template", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not string newName)
         {
             return;
         }
 
-        await Profiles.SetActiveAsync(_profile.Id);
-        _profile = (await Profiles.GetAllAsync()).FirstOrDefault(p => p.Id == _profile.Id);
-        Snackbar.Add("Template set active.", Severity.Success);
+        try
+        {
+            await Profiles.RenameAsync(p.Id, newName);
+            await ReloadProfilesAsync();
+            _profile = _profiles.FirstOrDefault(x => x.Id == p.Id) ?? _profile;
+            Snackbar.Add("Template renamed.", Severity.Success);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task Delete(TemplateProfile p)
+    {
+        var parameters = new DialogParameters<MudMessageBox>
+        {
+            { x => x.Title, "Delete template" },
+            { x => x.Message, $"Delete \"{p.Name}\"? Its stored file and mappings are removed. This cannot be undone." },
+            { x => x.YesText, "Delete" },
+            { x => x.CancelText, "Cancel" },
+        };
+        var dialog = await DialogService.ShowAsync<MudMessageBox>(string.Empty, parameters);
+        var result = await dialog.Result;
+        var confirmed = result is not null && !result.Canceled && result.Data as bool? == true;
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await Profiles.DeleteAsync(p.Id);
+        await ReloadProfilesAsync();
+        if (_profile?.Id == p.Id)
+        {
+            _profile = _profiles.FirstOrDefault(x => x.IsActive) ?? _profiles.FirstOrDefault();
+            if (_profile is not null)
+            {
+                await LoadProfileAsync(_profile);
+            }
+        }
+        Snackbar.Add("Template deleted.", Severity.Normal);
     }
 }

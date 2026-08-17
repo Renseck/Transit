@@ -780,6 +780,10 @@
     border-color: var(--tr-ink);
 }
 
+/* Template manager: reuse the line-list; mark the row currently loaded in the editor. */
+.tr-tpl-list { margin-bottom: 1.25rem; }
+.tr-line-row--current { outline: 2px solid var(--tr-line, currentColor); outline-offset: -2px; }
+
 /* ── Declaration history (/history page) ──────────────────────────────────────
    Reuses .tr-line-row from /locations; a mono period headline + a muted meta line. */
 .tr-run__period {

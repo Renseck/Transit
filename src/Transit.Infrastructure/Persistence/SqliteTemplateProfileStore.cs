@@ -116,6 +116,25 @@ public sealed class SqliteTemplateProfileStore : ITemplateProfileStore
         await tx.CommitAsync(ct);
     }
 
+    public async Task RenameAsync(int id, string name, CancellationToken ct = default)
+    {
+        var trimmed = (name ?? string.Empty).Trim();
+        if (trimmed.Length == 0)
+        {
+            throw new InvalidOperationException("A template needs a name.");
+        }
+
+        await using var db = await _factory.CreateDbContextAsync(ct);
+        var profile = await db.TemplateProfiles.FindAsync([id], ct);
+        if (profile is null)
+        {
+            return;
+        }
+
+        profile.Name = trimmed;
+        await db.SaveChangesAsync(ct);
+    }
+
     public async Task DeleteAsync(int id, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);

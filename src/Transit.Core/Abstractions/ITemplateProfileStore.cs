@@ -18,6 +18,9 @@ public interface ITemplateProfileStore
     // Atomic single-active swap: demote all, promote this one.
     Task SetActiveAsync(int id, CancellationToken ct = default);
 
+    // Rename the profile's friendly name (trimmed; blank rejected).
+    Task RenameAsync(int id, string name, CancellationToken ct = default);
+
     // Removes the row and the stored template folder.
     Task DeleteAsync(int id, CancellationToken ct = default);
 

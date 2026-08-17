@@ -89,7 +89,7 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
 - **Locations & routes page** — CRUD over work locations (with the travel and default-for-
   unmarked flags) and over routes (with outbound/return km and a default).
 - **Template / config page** — upload the employer template; map fields to columns and static
-  header cells; set the active profile.
+  header cells; list all saved profiles and activate / rename / delete one; set the active profile.
 - **History page** — list past runs; download the `.xlsx` or `.pdf` of each; click a run to preview
   its filled sheet, read-only, in a modal (rendered via `ISheetPreviewReader`).
 - **Overview page (home)** — a status dashboard + launchpad: this month's capture counts, a nudge to
@@ -103,7 +103,7 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
 - `IExcelWriter` → `ClosedXmlTemplateWriter` — load the template and write per the active
   `TemplateProfile`, preserving formatting and formulas.
 - `IPdfConverter` → `LibreOfficePdfConverter` — invoke `soffice --headless --convert-to pdf`.
-- `ITemplateProfileStore` — persist template file + mappings; select active.
+- `ITemplateProfileStore` — persist template file + mappings; select active; rename; delete.
 - `IArtifactStore` → `FileSystemArtifactStore` — write/read/delete generated files under
   `generated\{yyyy-MM}\{runId}\`; hand back paths.
 - `ISheetPreviewReader` → `ClosedXmlSheetPreviewReader` — read a sheet's used range into display

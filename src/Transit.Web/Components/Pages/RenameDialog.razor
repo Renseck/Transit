@@ -1,0 +1,25 @@
+<MudDialog>
+    <TitleContent>
+        <span class="tr-board__eyebrow">Rename template</span>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" Immediate="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string InitialName { get; set; } = "";
+
+    private string _name = "";
+
+    protected override void OnInitialized() => _name = InitialName;
+
+    private void Save() => MudDialog.Close(DialogResult.Ok(_name));
+    private void Cancel() => MudDialog.Cancel();
+}
