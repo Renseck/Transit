@@ -13,36 +13,45 @@
     <header class="tr-board">
         <div>
             <div class="tr-board__eyebrow">History</div>
-            <h1 class="tr-board__month">Declarations</h1>
+            <h1 class="tr-board__month">@_year</h1>
+            <TravelKmCounter Summary="YearSummary()" Title="Total work travel this year (latest run per month)" />
         </div>
+        <nav class="tr-board__nav" aria-label="Change year">
+            <button type="button" class="tr-ctrl" @onclick="PrevYear" aria-label="Previous year">‹ Prev</button>
+            <button type="button" class="tr-ctrl tr-ctrl--now" @onclick="GoThisYear">This year</button>
+            <button type="button" class="tr-ctrl" @onclick="NextYear" aria-label="Next year">Next ›</button>
+        </nav>
     </header>
 
-    @if (_runs.Count == 0)
-    {
-        <p class="tr-note">
-            <span class="tr-note__key">Empty</span>
-            <span>No declarations generated yet — generate one from the <a href="declaration">Declaration</a> page.</span>
-        </p>
-    }
-    else
-    {
-        <div class="tr-line-list">
-            @foreach (var run in _runs)
-            {
-                <div class="tr-line-row tr-line-row--clickable" role="button" tabindex="0"
-                     @onclick="() => OpenPreview(run)">
-                    <span class="tr-run__period">@PeriodLabel(run)</span>
-                    <span class="tr-run__meta">
-                        generated @run.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")
-                        · @run.TemplateName
+    <div class="tr-year-grid">
+        @foreach (var tile in _tiles)
+        {
+            <div class="@TileClasses(tile)"
+                 role="@(tile.IsDeclared ? "button" : null)"
+                 tabindex="@(tile.IsDeclared ? 0 : -1)"
+                 @onclick="() => OnTileClick(tile)">
+                <div class="tr-month-tile__name">@MonthName(tile.Month)</div>
+
+                @if (tile.IsDeclared && tile.LatestRun is not null)
+                {
+                    var run = tile.LatestRun;
+                    <div class="tr-month-tile__km">
+                        <span class="tr-month-tile__km-value">@run.TotalKm.ToString("0.#")</span>
+                        <span class="tr-month-tile__km-unit">km</span>
+                    </div>
+                    <div class="tr-month-tile__meta">
+                        @run.CreatedUtc.ToLocalTime().ToString("dd MMM HH:mm")
                         · @run.TravelDayCount travel days
-                    </span>
+                        @if (tile.RunCount > 1)
+                        {
+                            <span> · @tile.RunCount runs</span>
+                        }
+                    </div>
                     @if (!run.HasPdf)
                     {
                         <span class="tr-tag">xlsx only</span>
                     }
-                    <span class="tr-line-row__spacer"></span>
-                    <span class="tr-line-row__actions" @onclick:stopPropagation="true">
+                    <div class="tr-month-tile__actions" @onclick:stopPropagation="true">
                         <MudIconButton Icon="@Icons.Material.Filled.TableChart" Size="Size.Small"
                                        title="Download xlsx" OnClick="() => Download(run, ArtifactKind.Xlsx)" />
                         @if (run.HasPdf)
@@ -51,56 +60,74 @@
                                            title="Download pdf" OnClick="() => Download(run, ArtifactKind.Pdf)" />
                         }
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                       title="Delete run" OnClick="() => Delete(run)" />
-                    </span>
-                </div>
-            }
-        </div>
-    }
+                                       title="Delete latest run" OnClick="() => DeleteLatest(tile)" />
+                    </div>
+                }
+                else
+                {
+                    <div class="tr-month-tile__meta tr-month-tile__meta--empty">—</div>
+                }
+            </div>
+        }
+    </div>
 </div>
 
 @code {
-    private List<DeclarationRunSummary> _runs = [];
+    private int _year = DateTime.Today.Year;
+    private IReadOnlyList<DeclarationRunSummary> _runs = [];
+    private IReadOnlyList<MonthTileState> _tiles = [];
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
-    private async Task LoadAsync() => _runs = [.. await HistoryService.GetSummariesAsync()];
-
-    private Task OpenPreview(DeclarationRunSummary run)
+    private async Task LoadAsync()
     {
-        var parameters = new DialogParameters<SheetPreviewDialog>
+        _runs = await HistoryService.GetSummariesAsync();
+        _tiles = HistoryCalendar.BuildYear(_runs, _year);
+    }
+
+    // Year total: sum the latest run per declared month, so re-running a month never double-counts.
+    private TravelKmSummary YearSummary()
+    {
+        var latestPerMonth = _tiles.Where(t => t.LatestRun is not null).Select(t => t.LatestRun!).ToList();
+        return new TravelKmSummary(
+            latestPerMonth.Sum(r => r.TotalKm),
+            latestPerMonth.Sum(r => r.TravelDayCount));
+    }
+
+    private async Task OnTileClick(MonthTileState tile)
+    {
+        if (!tile.IsDeclared)
         {
-            { x => x.RunId, run.Id },
-            { x => x.Title, PeriodLabel(run) },
+            return;
+        }
+
+        var parameters = new DialogParameters<MonthRunsDialog>
+        {
+            { x => x.Year, _year },
+            { x => x.Month, tile.Month },
+            { x => x.Title, $"{_year} · {MonthName(tile.Month).ToUpperInvariant()}" },
         };
-        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
-        return DialogService.ShowAsync<SheetPreviewDialog>(PeriodLabel(run), parameters, options);
-    }
-
-    private static string PeriodLabel(DeclarationRunSummary run)
-        => new DateOnly(run.PeriodYear, run.PeriodMonth, 1).ToString("yyyy · MMM").ToUpperInvariant();
-
-    private async Task Download(DeclarationRunSummary run, ArtifactKind kind)
-    {
-        try
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<MonthRunsDialog>(string.Empty, parameters, options);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled && result.Data as bool? == true)
         {
-            var bytes = await HistoryService.OpenArtifactAsync(run.Id, kind);
-            var ext = kind == ArtifactKind.Pdf ? "pdf" : "xlsx";
-            var name = $"declaration-{run.PeriodYear:D4}-{run.PeriodMonth:D2}.{ext}";
-            await DownloadAsync(name, bytes);
-        }
-        catch (InvalidOperationException ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Warning);
+            await LoadAsync();
         }
     }
 
-    private async Task Delete(DeclarationRunSummary run)
+    private async Task DeleteLatest(MonthTileState tile)
     {
+        if (tile.LatestRun is null)
+        {
+            return;
+        }
+
+        var label = $"{_year} · {MonthName(tile.Month).ToUpperInvariant()}";
         var parameters = new DialogParameters<MudMessageBox>
         {
             { x => x.Title, "Delete declaration" },
-            { x => x.Message, $"Delete the {PeriodLabel(run)} run? Its files are removed too. This cannot be undone." },
+            { x => x.Message, $"Delete the latest {label} run? Its files are removed too. This cannot be undone." },
             { x => x.YesText, "Delete" },
             { x => x.CancelText, "Cancel" },
         };
@@ -112,15 +139,60 @@
             return;
         }
 
-        await HistoryService.DeleteAsync(run.Id);
+        await HistoryService.DeleteAsync(tile.LatestRun.Id);
         Snackbar.Add("Declaration deleted.", Severity.Normal);
         await LoadAsync();
     }
 
-    private async Task DownloadAsync(string fileName, byte[] bytes)
+    private async Task Download(DeclarationRunSummary run, ArtifactKind kind)
     {
-        using var stream = new MemoryStream(bytes);
-        using var streamRef = new DotNetStreamReference(stream);
-        await JS.InvokeVoidAsync("transitDownloadFromStream", fileName, streamRef);
+        try
+        {
+            var bytes = await HistoryService.OpenArtifactAsync(run.Id, kind);
+            var ext = kind == ArtifactKind.Pdf ? "pdf" : "xlsx";
+            var name = $"declaration-{run.PeriodYear:D4}-{run.PeriodMonth:D2}.{ext}";
+            using var stream = new MemoryStream(bytes);
+            using var streamRef = new DotNetStreamReference(stream);
+            await JS.InvokeVoidAsync("transitDownloadFromStream", name, streamRef);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task PrevYear()
+    {
+        _year--;
+        await LoadAsync();
+    }
+
+    private async Task NextYear()
+    {
+        _year++;
+        await LoadAsync();
+    }
+
+    private async Task GoThisYear()
+    {
+        _year = DateTime.Today.Year;
+        await LoadAsync();
+    }
+
+    private static string MonthName(int month) => new DateOnly(2000, month, 1).ToString("MMM");
+
+    private string TileClasses(MonthTileState tile)
+    {
+        var classes = new List<string> { "tr-month-tile" };
+        classes.Add(tile.IsDeclared ? "tr-month-tile--declared" : "tr-month-tile--empty");
+        if (tile.IsDeclared)
+        {
+            classes.Add("tr-month-tile--clickable");
+        }
+        if (_year == DateTime.Today.Year && tile.Month == DateTime.Today.Month)
+        {
+            classes.Add("tr-month-tile--current");
+        }
+        return string.Join(' ', classes);
     }
 }

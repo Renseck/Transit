@@ -54,6 +54,8 @@ public class SqliteDeclarationRunStoreTests
         Assert.True(summaries[0].HasXlsx);
         Assert.False(summaries[0].HasPdf);              // xlsx-only run
         Assert.True(summaries[1].HasPdf);
+        Assert.Equal(100m, summaries[0].TotalKm);       // 5 travel rows * 20 km
+        Assert.Equal(60m, summaries[1].TotalKm);        // 3 travel rows * 20 km
     }
 
     [Fact]

@@ -1,7 +1,8 @@
 namespace Transit.Core.Declarations;
 
 // A read-model row for the history list, projected without materialising the run's rows.
-// TravelDayCount is a projected count (travel rows), never a km total.
+// TravelDayCount is a projected count (travel rows); TotalKm is the projected sum of those rows'
+// kilometres — the run's declared travel distance.
 public sealed record DeclarationRunSummary(
     int Id,
     int PeriodYear,
@@ -10,4 +11,5 @@ public sealed record DeclarationRunSummary(
     string TemplateName,
     int TravelDayCount,
     bool HasXlsx,
-    bool HasPdf);
+    bool HasPdf,
+    decimal TotalKm);

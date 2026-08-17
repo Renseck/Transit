@@ -21,7 +21,8 @@ public sealed class SqliteDeclarationRunStore : IDeclarationRunStore
                 r.Id, r.PeriodYear, r.PeriodMonth, r.CreatedUtc, r.TemplateName,
                 r.Rows.Count(x => x.CountsAsTravel),
                 r.XlsxFilePath != "",
-                r.PdfFilePath != null))
+                r.PdfFilePath != null,
+                r.Rows.Where(x => x.CountsAsTravel).Sum(x => x.Kilometers)))
             .ToListAsync(ct);
     }
 

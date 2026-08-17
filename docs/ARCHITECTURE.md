@@ -90,8 +90,13 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
   unmarked flags) and over routes (with outbound/return km and a default).
 - **Template / config page** — upload the employer template; map fields to columns and static
   header cells; list all saved profiles and activate / rename / delete one; set the active profile.
-- **History page** — list past runs; download the `.xlsx` or `.pdf` of each; click a run to preview
-  its filled sheet, read-only, in a modal (rendered via `ISheetPreviewReader`).
+- **History page** — a year-paged 4×3 month grid (navigation like `/attendance`). Declared months are
+  coloured and expose the latest run's `.xlsx`/`.pdf` download + delete on the tile; the current month is
+  highlighted. Clicking a declared tile opens a per-month modal listing every run (append-only history)
+  with preview (read-only, via `ISheetPreviewReader`), download, and delete. Grouping is the pure
+  `HistoryCalendar` helper; no store change. The header shows a **year travel-distance total** (via the
+  shared `TravelKmCounter`), summing the latest run per declared month — `DeclarationRunSummary.TotalKm`
+  is projected from each run's frozen travel rows, so re-runs never double-count.
 - **Overview page (home)** — a status dashboard + launchpad: this month's capture counts, a nudge to
   declare the previous month, a location breakdown, recent runs with downloads, and setup health.
 

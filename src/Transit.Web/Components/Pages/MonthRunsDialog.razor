@@ -1,0 +1,129 @@
+@using Transit.Core.Declarations
+@using Transit.Core.Services
+@inject DeclarationHistoryService HistoryService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<MudDialog>
+    <TitleContent>
+        <span class="tr-board__eyebrow">@Title</span>
+    </TitleContent>
+    <DialogContent>
+        @if (_runs.Count == 0)
+        {
+            <p class="tr-note">
+                <span class="tr-note__key">Empty</span>
+                <span>No runs remain for this month.</span>
+            </p>
+        }
+        else
+        {
+            <div class="tr-line-list">
+                @foreach (var run in _runs)
+                {
+                    <div class="tr-line-row tr-line-row--clickable" role="button" tabindex="0"
+                         @onclick="() => OpenPreview(run)">
+                        <span class="tr-run__meta">
+                            generated @run.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+                            · @run.TemplateName
+                            · @run.TravelDayCount travel days
+                        </span>
+                        @if (!run.HasPdf)
+                        {
+                            <span class="tr-tag">xlsx only</span>
+                        }
+                        <span class="tr-line-row__spacer"></span>
+                        <span class="tr-line-row__actions" @onclick:stopPropagation="true">
+                            <MudIconButton Icon="@Icons.Material.Filled.TableChart" Size="Size.Small"
+                                           title="Download xlsx" OnClick="() => Download(run, ArtifactKind.Xlsx)" />
+                            @if (run.HasPdf)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Size="Size.Small"
+                                               title="Download pdf" OnClick="() => Download(run, ArtifactKind.Pdf)" />
+                            }
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           title="Delete run" OnClick="() => Delete(run)" />
+                        </span>
+                    </div>
+                }
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public int Year { get; set; }
+    [Parameter] public int Month { get; set; }
+    [Parameter] public string Title { get; set; } = "Runs";
+
+    // Set true if any run was deleted, so the caller knows to refresh the grid.
+    private bool _changed;
+    private List<DeclarationRunSummary> _runs = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var all = await HistoryService.GetSummariesAsync();
+        _runs = [.. HistoryCalendar.RunsForMonth(all, Year, Month)];
+    }
+
+    private Task OpenPreview(DeclarationRunSummary run)
+    {
+        var parameters = new DialogParameters<SheetPreviewDialog>
+        {
+            { x => x.RunId, run.Id },
+            { x => x.Title, Title },
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
+        return DialogService.ShowAsync<SheetPreviewDialog>(Title, parameters, options);
+    }
+
+    private async Task Download(DeclarationRunSummary run, ArtifactKind kind)
+    {
+        try
+        {
+            var bytes = await HistoryService.OpenArtifactAsync(run.Id, kind);
+            var ext = kind == ArtifactKind.Pdf ? "pdf" : "xlsx";
+            var name = $"declaration-{run.PeriodYear:D4}-{run.PeriodMonth:D2}.{ext}";
+            using var stream = new MemoryStream(bytes);
+            using var streamRef = new DotNetStreamReference(stream);
+            await JS.InvokeVoidAsync("transitDownloadFromStream", name, streamRef);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task Delete(DeclarationRunSummary run)
+    {
+        var parameters = new DialogParameters<MudMessageBox>
+        {
+            { x => x.Title, "Delete declaration" },
+            { x => x.Message, $"Delete this {Title} run? Its files are removed too. This cannot be undone." },
+            { x => x.YesText, "Delete" },
+            { x => x.CancelText, "Cancel" },
+        };
+        var dialog = await DialogService.ShowAsync<MudMessageBox>(string.Empty, parameters);
+        var result = await dialog.Result;
+        var confirmed = result is not null && !result.Canceled && result.Data as bool? == true;
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await HistoryService.DeleteAsync(run.Id);
+        _changed = true;
+        Snackbar.Add("Declaration deleted.", Severity.Normal);
+        await LoadAsync();
+    }
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(_changed));
+}

@@ -1,6 +1,6 @@
 @using Transit.Core.Declarations
 
-<div class="tr-km-counter" title="Travel distance this month (default routes)">
+<div class="tr-km-counter" title="@Title">
     <span class="tr-km-counter__value">@Summary.TotalKm.ToString("0.#")</span>
     <span class="tr-km-counter__unit">km</span>
     <span class="tr-km-counter__days">
@@ -10,4 +10,7 @@
 
 @code {
     [Parameter, EditorRequired] public TravelKmSummary Summary { get; set; } = new(0m, 0);
+
+    // Tooltip text; defaults to the per-month framing used on /declaration and /attendance.
+    [Parameter] public string Title { get; set; } = "Travel distance this month (default routes)";
 }
