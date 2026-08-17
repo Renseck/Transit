@@ -1,0 +1,13 @@
+@using Transit.Core.Declarations
+
+<div class="tr-km-counter" title="Travel distance this month (default routes)">
+    <span class="tr-km-counter__value">@Summary.TotalKm.ToString("0.#")</span>
+    <span class="tr-km-counter__unit">km</span>
+    <span class="tr-km-counter__days">
+        @Summary.TravelDayCount travel @(Summary.TravelDayCount == 1 ? "day" : "days")
+    </span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public TravelKmSummary Summary { get; set; } = new(0m, 0);
+}

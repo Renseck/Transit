@@ -2,10 +2,12 @@
 @rendermode InteractiveServer
 @using Transit.Core.Abstractions
 @using Transit.Core.Calendar
+@using Transit.Core.Declarations
 @using Transit.Core.Entities
 @using Transit.Core.Services
 @inject LocationService Locations
 @inject IAttendanceStore AttendanceStore
+@inject RouteService Routes
 
 <PageTitle>Attendance</PageTitle>
 
@@ -14,6 +16,7 @@
         <div>
             <div class="tr-board__eyebrow">Period</div>
             <h1 class="tr-board__month">@_monthLabel</h1>
+            <TravelKmCounter Summary="CounterSummary()" />
         </div>
         <nav class="tr-board__nav" aria-label="Change month">
             <button type="button" class="tr-ctrl" @onclick="PrevMonth" aria-label="Previous month">‹ Prev</button>
@@ -94,6 +97,7 @@
     private static readonly string[] _weekdayHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
     private List<WorkLocation> _locations = [];
+    private List<Route> _routes = [];
     private int? _activeLocationId;   // null = eraser
     private bool _brushSelected;      // false = nothing chosen; distinguishes from eraser
     private bool _painting;           // true while a pointer stroke is in progress
@@ -108,6 +112,7 @@
     protected override async Task OnInitializedAsync()
     {
         _allLocations = [.. await Locations.GetAllAsync(includeArchived: true)];
+        _routes = [.. await Routes.GetAllAsync()];
         _locations = [.. _allLocations.Where(l => !l.IsArchived)];
         if (_locations.Count > 0)
         {
@@ -280,4 +285,7 @@
             && int.TryParse(value.AsSpan(2, 2), System.Globalization.NumberStyles.HexNumber, null, out g)
             && int.TryParse(value.AsSpan(4, 2), System.Globalization.NumberStyles.HexNumber, null, out b);
     }
+
+    private TravelKmSummary CounterSummary()
+        => TravelKmCalculator.ForMarks(_marks, _year, _month, _allLocations, _routes);
 }

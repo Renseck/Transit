@@ -20,6 +20,7 @@
         <div>
             <div class="tr-board__eyebrow">Declaration</div>
             <h1 class="tr-board__month">@_monthLabel</h1>
+            <TravelKmCounter Summary="CounterSummary()" />
         </div>
         <nav class="tr-board__nav" aria-label="Change month">
             <button type="button" class="tr-ctrl" @onclick="PrevMonth" aria-label="Previous month">&lsaquo; Prev</button>
@@ -262,5 +263,17 @@
         using var stream = new MemoryStream(bytes);
         using var streamRef = new DotNetStreamReference(stream);
         await JS.InvokeVoidAsync("transitDownloadFromStream", fileName, streamRef);
+    }
+
+    private TravelKmSummary CounterSummary()
+    {
+        if (_draft is null)
+        {
+            return new TravelKmSummary(0m, 0);
+        }
+
+        var travelRows = _draft.Rows.Where(r => r.CountsAsTravel).ToList();
+        var total = travelRows.Sum(r => ComputeKm(r, SelectedRoute(r)));
+        return new TravelKmSummary(total, travelRows.Count);
     }
 }
