@@ -14,7 +14,7 @@
 [CmdletBinding()]
 param([switch]$Force)
 
-$StatusUrl = 'http://localhost:8083/api/reminder/today-status'
+$StatusUrl = 'http://transit.local:8083/api/reminder/today-status'
 $OpenUrl   = 'http://transit.local:8083'
 
 if (-not $Force) {
