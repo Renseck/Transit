@@ -109,7 +109,7 @@ filesystem, the database, or shells out goes behind one of these.
 
 - **Locations are user-defined** (`WorkLocation`), not a fixed enum. Each carries
   `CountsAsTravel`, an optional `Postcode` (feeds the template's `van`/`naar` postcode columns),
-  and there is exactly one `IsDefaultForUnmarked` (Home).
+  and there is exactly one `IsDefaultForUnmarked` (Home). An optional `NetworkHint` (Wi-Fi name) lets the reminder toast suggest the location.
 - **Km:** travel day → route `TotalKm` = `OutboundKm + ReturnKm` (outbound and return differ
   and are stored separately); non-travel day → `0`.
 - **Routes are directed between-location pairs** (`FromLocationId` → `ToLocationId`) with separate
@@ -147,7 +147,9 @@ filesystem, the database, or shells out goes behind one of these.
 - **No Office/COM automation.** `Microsoft.Office.Interop.Excel` is unsupported under IIS.
   PDF conversion only through `IPdfConverter`.
 - **Loopback only.** The site binds to `localhost:83`; do not add external bindings or a
-  network API. (`IAttendanceStore` reads SQLite directly — no HTTP capture endpoint.)
+  network API. The reminder helper has two loopback endpoints: `today-status` (read) and
+  `log-today` — the **only write endpoint**: today only, active locations only, never overwrites,
+  loopback remote address enforced, JSON-only. Do not widen it; anything more goes through the UI.
 - **Dates:** watch for any implicit timezone conversion that could shift a day.
 - **Durability:** `C:\ProgramData\Transit\` is the only copy of attendance history — never write code that
   destructively rewrites it in place.

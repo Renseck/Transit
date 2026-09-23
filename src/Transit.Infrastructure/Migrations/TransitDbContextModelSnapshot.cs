@@ -288,6 +288,9 @@ namespace Transit.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("NetworkHint")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Postcode")
                         .HasColumnType("TEXT");
 

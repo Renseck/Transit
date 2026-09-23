@@ -17,4 +17,9 @@ public class WorkLocation
 
     // Optional postcode of this place; feeds the template's van/naar postcode columns.
     public string? Postcode { get; set; }
+
+    
+    // Optional network name (Wi-Fi SSID) seen at this place; the reminder suggests this location when connected to it.
+    public string? NetworkHint { get; set; }
+
 }

@@ -35,6 +35,9 @@ $PublishDir = 'C:\inetpub\wwwroot\Transit'
 $DataRoot   = 'C:\ProgramData\Transit'
 $ReminderHelperSrc  = Join-Path $RepoRoot 'scripts\Remind-Transit.ps1'
 $ReminderHelperDest = Join-Path $DataRoot 'Remind-Transit.ps1'
+$QuickLogHelperSrc  = Join-Path $RepoRoot 'scripts\Log-Transit.ps1'
+$QuickLogHelperDest = Join-Path $DataRoot 'Log-Transit.ps1'
+$ProtocolKey        = 'HKCU:\Software\Classes\transit'
 $AppPool    = 'Transit'
 $SiteName   = 'transit'
 $Port       = 8083
@@ -198,6 +201,33 @@ function Set-ReminderTasks {
     Add-Summary "Registered reminder tasks (logon +$ReminderLogonDelayMinutes min, daily $ReminderMiddayTime)"
 }
 
+
+# transit: URI handler for one-click logging from the reminder toast. HKCU is the
+# account running this (elevated) script - correct for normal same-user UAC elevation.
+function Set-QuickLogProtocol {
+    Write-Phase 'Quick-log URI handler'
+
+    if ($NoReminder) {
+        if (Test-Path $ProtocolKey) {
+            Remove-Item -Path $ProtocolKey -Recurse -Force
+            Add-Summary 'Removed transit: URI handler'
+        }
+        return
+    }
+
+    Copy-Item -Path $QuickLogHelperSrc -Destination $QuickLogHelperDest -Force
+    Write-Info "Copied quick-log helper to $QuickLogHelperDest"
+
+    # conhost --headless avoids the console flash that -WindowStyle Hidden still produces.
+    $command = "conhost.exe --headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$QuickLogHelperDest`" `"%1`""
+    New-Item -Path "$ProtocolKey\shell\open\command" -Force | Out-Null
+    Set-ItemProperty -Path $ProtocolKey -Name '(default)' -Value 'URL:Transit'
+    Set-ItemProperty -Path $ProtocolKey -Name 'URL Protocol' -Value ''
+    Set-ItemProperty -Path "$ProtocolKey\shell\open\command" -Name '(default)' -Value $command
+    Add-Summary 'Registered transit: URI handler (toast quick-log)'
+}
+
+
 function New-TransitAppPool {
     Write-Phase "App pool '$AppPool'"
     if (-not (Test-Path "IIS:\AppPools\$AppPool")) {
@@ -277,7 +307,9 @@ function Publish-Transit {
 
 function Test-TransitSite {
     Write-Phase 'Smoke check'
-    $url = "http://localhost:$Port"
+    # transit.local, not localhost: an upgraded site may only have the transit.local host-header binding
+    # on this port, and localhost then gets HTTP.sys "400 Invalid Hostname".
+    $url = "http://transit.local:$Port"
     for ($attempt = 1; $attempt -le 5; $attempt++) {
         try {
             $resp = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 15
@@ -302,7 +334,7 @@ function Write-Summary {
     if ($script:RebootFlag) {
         Write-Host "`n[Transit] A REBOOT IS PENDING. Reboot, then re-run this script to finish." -ForegroundColor Yellow
     }
-    Write-Host "`n[Transit] Transit is at http://localhost:$Port" -ForegroundColor Green
+    Write-Host "`n[Transit] Transit is at http://transit.local:$Port" -ForegroundColor Green
 }
 
 # --- Main -----------------------------------------------------------------
@@ -343,4 +375,5 @@ Publish-Transit
 Test-TransitSite
 if (-not $NoReminder) { Install-BurntToast }
 Set-ReminderTasks
+Set-QuickLogProtocol
 Write-Summary

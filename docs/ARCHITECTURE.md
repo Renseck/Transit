@@ -132,6 +132,8 @@ WorkLocation
   CountsAsTravel (bool),          // Office = true, Home = false
   IsDefaultForUnmarked (bool),    // exactly one; Home
   Postcode (string?)              // optional; feeds the template's van/naar postcode columns
+  NetworkHint (string?)           // optional Wi-Fi name; the reminder suggests this location when connected
+
 
 Route
   Id, Name
@@ -267,17 +269,30 @@ re-running a month creates a new run and new artifacts; it never overwrites hist
 IIS hosts the app in Session 0 as a service account, which cannot raise Windows toast
 notifications. The reminder therefore lives in a desktop-session helper, not the app:
 
-- `GET /api/reminder/today-status` (loopback, no auth) returns
-  `{ date, explicitlyLogged }`. It reads `IAttendanceStore` for `[today, today]` and
-  decides via the pure `AttendanceStatus.IsExplicitlyLogged` — the silent Home-default
-  never counts as logged. The request also warms a cold app pool.
+- `GET /api/reminder/today-status?network=…` (loopback, no auth) returns
+  `{ date, explicitlyLogged, suggestion?, options[] }`. `explicitlyLogged` comes from the pure
+  `AttendanceStatus.IsExplicitlyLogged` — the silent Home-default never counts as logged.
+  `suggestion` is the active location whose `NetworkHint` matches a connected network
+  (`NetworkHintMatcher`); `options` are up to four locations for toast buttons, suggestion first
+  (`ReminderChoices`). The request also warms a cold app pool.
+- `POST /api/reminder/log-today` `{ date, locationId }` — the **only write endpoint**. Loopback
+  remote address enforced, JSON body only (no CORS policy, so web pages cannot call it). The pure
+  `QuickLogRules` allows it only for today, only to an active location, and never over an existing
+  mark: `Logged` 200, `AlreadyLogged`/`StaleReminder` 409, `UnknownLocation` 404. Writes through
+  `IAttendanceStore.SetAsync`.
 - `scripts/Remind-Transit.ps1` runs in the interactive user session via two Scheduled
   Tasks (logon +5 min, daily midday), registered by `Install-Transit.ps1`. It guards
-  weekends, polls the endpoint, and — if today is unlogged or the app is unreachable
-  (fail-open) — shows a BurntToast toast whose button opens `transit.local`.
+  weekends, sends the connected network names, and — if today is unlogged or the app is
+  unreachable (fail-open, Open-only) — shows a BurntToast toast with one button per option
+  (`transit:log?location={id}&date={date}`) plus **Open**.
+- `scripts/Log-Transit.ps1` is the `transit:` URI handler (HKCU, registered by the installer,
+  launched via `conhost --headless`). It strictly parses the URI, POSTs to `log-today`, and shows
+  a result toast. A toast clicked on a later day is rejected as stale because the date travels in
+  the URI. HKCU belongs to the account running the elevated installer (correct for same-user UAC).
 
 Configuration is by installer parameters (`-ReminderLogonDelayMinutes`,
-`-ReminderMiddayTime`, `-NoReminder`); there is no runtime config file.
+`-ReminderMiddayTime`, `-NoReminder` — which also removes the `transit:` handler); there is no
+runtime config file.
 
 **Durability note (important):** `DataRoot` (`app.db` + `templates\` + `generated\`) is now the
 *only* copy of your attendance history **and your signed-declaration history** — `generated\` holds

@@ -30,7 +30,8 @@ public sealed class LocationService
     }
 
     public async Task<WorkLocation> CreateAsync(
-        string name, string colorHex, bool countsAsTravel, string? postcode = null, CancellationToken ct = default)
+        string name, string colorHex, bool countsAsTravel, string? postcode = null, string? networkHint = null,
+        CancellationToken ct = default)
     {
         var all = await _store.GetAllAsync(includeArchived: true, ct);
         var active = all.Where(l => !l.IsArchived).ToList();
@@ -46,13 +47,15 @@ public sealed class LocationService
             IsArchived = false,
             DisplayOrder = order,
             Postcode = string.IsNullOrWhiteSpace(postcode) ? null : postcode.Trim(),
+            NetworkHint = string.IsNullOrWhiteSpace(networkHint) ? null : networkHint.Trim(),
         };
 
         return await _store.AddAsync(location, ct);
     }
 
     public async Task UpdateAsync(
-        int id, string name, string colorHex, bool countsAsTravel, string? postcode = null, CancellationToken ct = default)
+        int id, string name, string colorHex, bool countsAsTravel, string? postcode = null, string? networkHint = null,
+        CancellationToken ct = default)
     {
         var all = await _store.GetAllAsync(includeArchived: true, ct);
         var target = all.FirstOrDefault(l => l.Id == id)
@@ -65,6 +68,7 @@ public sealed class LocationService
         target.ColorHex = colorHex;
         target.CountsAsTravel = countsAsTravel;
         target.Postcode = string.IsNullOrWhiteSpace(postcode) ? null : postcode.Trim();
+        target.NetworkHint = string.IsNullOrWhiteSpace(networkHint) ? null : networkHint.Trim();
         await _store.UpdateAsync(target, ct);
     }
 

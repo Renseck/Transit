@@ -10,6 +10,10 @@
             <MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" Immediate="true" />
 
             <MudTextField @bind-Value="_postcode" Label="Postcode (optional)" Variant="Variant.Outlined" />
+
+            <MudTextField @bind-Value="_networkHint" Label="Network name (optional)" Variant="Variant.Outlined"
+                          HelperText="Wi-Fi name at this location — the reminder suggests this line when you're on it. Not the company domain: that also shows up over VPN." />
+
             <div>
                 <div class="tr-section-eyebrow">Line colour</div>
                 <div class="tr-swatch-set">
@@ -46,6 +50,7 @@
 
     private string _name = string.Empty;
     private string _postcode = string.Empty;
+    private string _networkHint = string.Empty;
     private string _colorHex = LinePalette.All[0].Hex;
     private bool _countsAsTravel;
     private bool _makeDefault;
@@ -62,6 +67,7 @@
 
         _name = Existing.Name;
         _postcode = Existing.Postcode ?? string.Empty;
+        _networkHint = Existing.NetworkHint ?? string.Empty;
         _colorHex = Existing.ColorHex;
         _countsAsTravel = Existing.CountsAsTravel;
         _isCurrentDefault = Existing.IsDefaultForUnmarked;
@@ -76,8 +82,11 @@
     private void Cancel() => MudDialog.Cancel();
 
     private void Save()
-        => MudDialog.Close(DialogResult.Ok(new LocationEditResult(_name, _colorHex, _countsAsTravel, _makeDefault && !_isCurrentDefault, _postcode)));
+        => MudDialog.Close(DialogResult.Ok(new LocationEditResult(
+            _name, _colorHex, _countsAsTravel, _makeDefault && !_isCurrentDefault, _postcode, _networkHint)));
 
     // Nested in the component's @code so it surfaces as LocationEditorDialog.LocationEditResult.
-    public sealed record LocationEditResult(string Name, string ColorHex, bool CountsAsTravel, bool MakeDefault, string? Postcode);
+    public sealed record LocationEditResult(
+        string Name, string ColorHex, bool CountsAsTravel, bool MakeDefault, string? Postcode, string? NetworkHint);
+
 }
