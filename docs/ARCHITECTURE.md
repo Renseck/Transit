@@ -104,7 +104,7 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
   failure, shows the `icacls` grant for the IIS app-pool identity. Tokens `{maand}`/`{Maand}`/`{jaar}`/`{naam}` (pure `EmailComposer`: fixed
   set, plain replaces, unknown tokens kept as typed; `{naam}` = the active template's EmployeeName).
 - **Overview page (home)** — a status dashboard + launchpad: this month's capture counts, a nudge to
-  declare the previous month, a location breakdown, recent runs with downloads, and setup health.
+  declare the previous month (deep-links `/declaration?month=yyyy-MM`, which any link can use), a location breakdown, recent runs with downloads, and setup health.
 
 ### Services
 
@@ -300,11 +300,13 @@ IIS hosts the app in Session 0 as a service account, which cannot raise Windows 
 notifications. The reminder therefore lives in a desktop-session helper, not the app:
 
 - `GET /api/reminder/today-status?network=…` (loopback, no auth) returns
-  `{ date, explicitlyLogged, suggestion?, options[] }`. `explicitlyLogged` comes from the pure
+  `{ date, explicitlyLogged, suggestion?, options[], pendingDeclaration? }`. `explicitlyLogged` comes from the pure
   `AttendanceStatus.IsExplicitlyLogged` — the silent Home-default never counts as logged.
   `suggestion` is the active location whose `NetworkHint` matches a connected network
   (`NetworkHintMatcher`); `options` are up to four locations for toast buttons, suggestion first
-  (`ReminderChoices`). The request also warms a cold app pool.
+  (`ReminderChoices`). `pendingDeclaration` (`{ year, month, label, query }`) is last month while it
+  has no run (pure `DeclarationReminder`, also behind the overview nudge). The request also warms a
+  cold app pool.
 - `POST /api/reminder/log-today` `{ date, locationId }` — the **only write endpoint**. Loopback
   remote address enforced, JSON body only (no CORS policy, so web pages cannot call it). The pure
   `QuickLogRules` allows it only for today, only to an active location, and never over an existing
@@ -314,7 +316,10 @@ notifications. The reminder therefore lives in a desktop-session helper, not the
   Tasks (logon +5 min, daily midday), registered by `Install-Transit.ps1`. It guards
   weekends, sends the connected network names, and — if today is unlogged or the app is
   unreachable (fail-open, Open-only) — shows a BurntToast toast with one button per option
-  (`transit:log?location={id}&date={date}`) plus **Open**.
+  (`transit:log?location={id}&date={date}`) plus **Open**. Independently, while `pendingDeclaration`
+  is set it shows a **declare** toast (*Declare* opens `/declaration?month=yyyy-MM`, *Later*
+  dismisses; a fixed toast id so the midday run replaces the logon one). Nothing generates or signs
+  in the background — the toast only nudges; signing stays the Generate click.
 - `scripts/Log-Transit.ps1` is the `transit:` URI handler (HKCU, registered by the installer,
   launched via `conhost --headless`). It strictly parses the URI, POSTs to `log-today`, and shows
   a result toast. A toast clicked on a later day is rejected as stale because the date travels in
@@ -361,6 +366,7 @@ backup — it is a folder-level responsibility.
 | Signature | Name in a script font + generate date, written into template cells before PDF conversion | Mirrors Adobe's typed signature; no secret, no new dependency, reuses cell mappings | Stamped PNG (image storage + DPAPI for no real gain); PAdES certificate signing (library + trusted cert) |
 | What gets signed | PDF only; stored xlsx stays unsigned (template filled twice) | The PDF is what's handed in | Sign both (signature leaks into the editable file) |
 | When signing happens | Only on an explicit Generate click | Signing attests the reviewed rows; unattended signing bypasses review | Auto-generate + sign on the 1st |
+| Month-end reminder | Desktop toast while last month has no run; condition-based, not date-based | Survives the laptop being off on the 1st; reuses the existing helper + read endpoint; no background job in IIS | Auto-generate a draft on the 1st (draft runs + data-model state for one saved click); in-app timer (app pool idles out) |
 | Export copy | Server copies the signed PDF into a configured folder after each generate (overwrite, non-fatal) | The app runs on the same laptop, so the server can write the file; works in any browser | Browser picks a folder (File System Access API needs HTTPS/localhost; transit.local is neither); Edge "ask where to save" (a dialog every time) |
 | Email templating | Fixed token set, plain string replaces | Covers month/year/name without a parser; typos stay visible | Hardcoded text (code change per wording); a templating engine (overkill) |
 | Settings storage | Single-row `AppSettings` table behind `ISettingsStore` | Editable in the UI, survives republish, one home for future settings | `appsettings.json` (clumsy under IIS, overwritten on publish); on `TemplateProfile` (lost on new template version) |

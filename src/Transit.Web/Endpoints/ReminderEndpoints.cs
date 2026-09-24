@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using Transit.Core.Abstractions;
 using Transit.Core.Attendance;
+using Transit.Core.Declarations;
 using Transit.Core.Services;
 
 namespace Transit.Web.Endpoints;
@@ -15,7 +16,7 @@ public static class ReminderEndpoints
     }
 
     public static async Task<TodayStatus> GetTodayStatusAsync(
-        IAttendanceStore store, LocationService locations,
+        IAttendanceStore store, LocationService locations, DeclarationHistoryService history,
         [FromQuery(Name = "network")] string[]? networks, CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(DateTime.Now);
@@ -30,7 +31,9 @@ public static class ReminderEndpoints
             .Select(l => new ReminderOption(l.Id, l.Name))
             .ToList();
 
-        return new TodayStatus(today, AttendanceStatus.IsExplicitlyLogged(entries, today), suggestion, options);
+        var pending = DeclarationReminder.Pending(today, await history.GetSummariesAsync(ct));
+
+        return new TodayStatus(today, AttendanceStatus.IsExplicitlyLogged(entries, today), suggestion, options, pending);
     }
 
     // One-click log from the toast: loopback only, today only, never overwrites (QuickLogRules).

@@ -53,11 +53,11 @@
             </div>
         </div>
 
-        @if (_previousUndeclared)
+        @if (_pending is not null)
         {
             <p class="tr-note tr-note--signal">
                 <span class="tr-note__key">To do</span>
-                <span>@_previousLabel is not declared yet. <a href="declaration">Review &amp; generate</a>.</span>
+                <span>@_pending.Label is not declared yet. <a href="@($"declaration?month={_pending.Query}")">Review &amp; generate</a>.</span>
             </p>
         }
 
@@ -137,8 +137,7 @@
     private int _unmarked;
     private int _noRoute;
 
-    private bool _previousUndeclared;
-    private string _previousLabel = "";
+    private PendingDeclaration? _pending;
 
     private List<BreakdownItem> _breakdown = [];
     private List<DeclarationRunSummary> _latestRuns = [];
@@ -167,9 +166,7 @@
         var summaries = await HistoryService.GetSummariesAsync();
         _latestRuns = summaries.Take(3).ToList();
 
-        var prev = new DateOnly(_year, _month, 1).AddMonths(-1);
-        _previousLabel = prev.ToString("MMMM yyyy");
-        _previousUndeclared = !summaries.Any(s => s.PeriodYear == prev.Year && s.PeriodMonth == prev.Month);
+        _pending = DeclarationReminder.Pending(new DateOnly(_year, _month, 1), summaries);
 
         _activeTemplate = await Profiles.GetActiveAsync() is not null;
         _locationCount = (await Locations.GetActiveAsync()).Count;

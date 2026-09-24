@@ -158,7 +158,8 @@ filesystem, the database, or shells out goes behind one of these.
 - **No Office/COM automation.** `Microsoft.Office.Interop.Excel` is unsupported under IIS.
   PDF conversion only through `IPdfConverter`.
 - **Loopback only.** The site binds to `localhost:83`; do not add external bindings or a
-  network API. The reminder helper has two loopback endpoints: `today-status` (read) and
+  network API. The reminder helper has two loopback endpoints: `today-status` (read; also carries
+  `pendingDeclaration` for the month-end "declare" toast) and
   `log-today` — the **only write endpoint**: today only, active locations only, never overwrites,
   loopback remote address enforced, JSON-only. Do not widen it; anything more goes through the UI.
 - **Dates:** watch for any implicit timezone conversion that could shift a day.

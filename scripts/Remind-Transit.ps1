@@ -3,12 +3,13 @@
 .SYNOPSIS
   Desktop reminder: if today's work location is not explicitly logged in Transit,
   show a Windows toast with one button per location (one-click logging via the
-  transit: URI handler) plus Open. Runs in the interactive user session (IIS
-  Session 0 cannot raise toasts).
+  transit: URI handler) plus Open. Separately, while last month has no
+  declaration run, show a "declare" toast that opens /declaration on that month.
+  Runs in the interactive user session (IIS Session 0 cannot raise toasts).
 .PARAMETER Force
-  Skip the weekend guard and the already-logged check and show the toast
-  unconditionally (manual verification). Buttons still come from the app when
-  it is reachable.
+  Skip the weekend guard and the already-logged check and show the attendance
+  toast unconditionally (manual verification). Buttons still come from the app
+  when it is reachable. The declare toast still only shows when a month is due.
 .NOTES
   Registered as a Scheduled Task by Install-Transit.ps1. Copied to
   C:\ProgramData\Transit so it does not depend on the repo location.
@@ -44,7 +45,6 @@ function Get-TodayStatus {
 if (-not $Force -and (Get-Date).DayOfWeek -in 'Saturday', 'Sunday') { return }
 
 $status = Get-TodayStatus
-if (-not $Force -and $status -and $status.explicitlyLogged) { return }   # already logged -> silent
 
 if (-not (Get-Module -ListAvailable -Name BurntToast)) {
     Write-Warning 'BurntToast module not installed; cannot show reminder. Re-run Install-Transit.ps1.'
@@ -52,6 +52,18 @@ if (-not (Get-Module -ListAvailable -Name BurntToast)) {
 }
 
 Import-Module BurntToast
+
+# Declare toast: independent of today's attendance. The fixed identifier makes the midday
+# run replace the logon toast in the Action Center instead of stacking a second one.
+if ($status -and $status.pendingDeclaration) {
+    $pending = $status.pendingDeclaration
+    $declare = New-BTButton -Content 'Declare' -Arguments "$OpenUrl/declaration?month=$($pending.query)" -ActivationType Protocol
+    $later   = New-BTButton -Dismiss -Content 'Later'
+    New-BurntToastNotification -Text 'Transit', "$($pending.label) isn't declared yet $Dash review, sign and send it." `
+        -Button $declare, $later -UniqueIdentifier 'transit-declare'
+}
+
+if (-not $Force -and $status -and $status.explicitlyLogged) { return }   # already logged -> silent
 
 $buttons = @()
 if ($status) {

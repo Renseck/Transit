@@ -129,6 +129,9 @@
     private (int Year, int Month) _emailPeriod;
     private DeclarationDraft? _draft;
     private List<WorkLocation> _activeLocations = [];
+
+    // Deep link from the overview nudge / desktop toast: /declaration?month=2026-08.
+    [SupplyParameterFromQuery(Name = "month")] public string? MonthQuery { get; set; }
     private List<Route> _routes = [];
     private string _defaultName = "Home";
 
@@ -139,6 +142,11 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (DeclarationReminder.TryParseQuery(MonthQuery, out var year, out var month))
+        {
+            (_year, _month) = (year, month);
+        }
+
         _activeLocations = [.. await Locations.GetActiveAsync()];
         _routes = [.. await Routes.GetAllAsync()];
 
