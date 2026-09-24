@@ -134,7 +134,9 @@ filesystem, the database, or shells out goes behind one of these.
   PDF only. Never sign unattended; the signed workbook is never persisted.
 - **Declaration email.** `/settings` holds the finance email (recipient + subject/body templates with
   tokens `{maand}` `{Maand}` `{jaar}` `{naam}`, rendered by the pure `EmailComposer`). After a generate,
-  `/declaration` shows it with copy buttons and a `mailto:` link; the PDF is attached by hand.
+  `/declaration` shows it with **Open draft** (an unsent `.eml` from the pure `EmlDraft`, signed PDF
+  attached — classic Outlook opens it editable), plus `mailto:` and copy fallbacks. The Outlook
+  signature stays a manual step.
 - **Export folder.** With `AppSettings.ExportFolder` set, each generate also copies the signed PDF
   there under its download name (overwriting an older copy). A failed copy is reported, never fatal —
   history already holds the run. The only write outside `DataRoot`; it never creates folders.

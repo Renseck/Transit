@@ -86,8 +86,11 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
 - **Attendance page** — the calendar marking surface described in §3.
 - **Declaration page** — pick month → pull → review grid (date, location, editable route per
   travel day, default pre-selected) → generate. After a generate with a PDF, an `EmailPanel` shows the
-  rendered finance email (copy subject/body, or *Open in Outlook* via a `mailto:` link — the PDF is
-  attached by hand; `mailto:` cannot carry attachments).
+  rendered finance email: **Open draft** downloads an unsent `.eml` (pure `EmlDraft`: `X-Unsent: 1`,
+  recipient, subject, body as plain + HTML alternatives, the signed PDF attached) that classic Outlook
+  opens as an editable new message — the HTML part matters: a plain-only body opens in Plain Text
+  format, where Insert → Signature drops the signature's images; *Open in Outlook* (`mailto:`, no attachment) and copy buttons remain as fallbacks. The
+  Outlook signature is the one manual step — neither route can trigger it.
 - **Locations & routes page** — CRUD over work locations (with the travel and default-for-
   unmarked flags) and over routes (with outbound/return km and a default).
 - **Template / config page** — upload the employer template; map fields to columns and static
@@ -370,7 +373,7 @@ backup — it is a folder-level responsibility.
 | Export copy | Server copies the signed PDF into a configured folder after each generate (overwrite, non-fatal) | The app runs on the same laptop, so the server can write the file; works in any browser | Browser picks a folder (File System Access API needs HTTPS/localhost; transit.local is neither); Edge "ask where to save" (a dialog every time) |
 | Email templating | Fixed token set, plain string replaces | Covers month/year/name without a parser; typos stay visible | Hardcoded text (code change per wording); a templating engine (overkill) |
 | Settings storage | Single-row `AppSettings` table behind `ISettingsStore` | Editable in the UI, survives republish, one home for future settings | `appsettings.json` (clumsy under IIS, overwritten on publish); on `TemplateProfile` (lost on new template version) |
-| Email hand-off | Copy buttons + `mailto:` link; PDF attached manually | No Office automation, works with any mail client | `.eml` draft with attachment (deferred until verified on the user's Outlook) |
+| Email hand-off | `.eml` draft (`X-Unsent: 1`) with the PDF attached; `mailto:` + copy as fallbacks | Verified on the user's classic Outlook: opens editable with Send, PDF attached; no Office automation | `mailto:` only (cannot attach); Outlook COM (unsupported under IIS, Session 0); embedding the Outlook signature (the app can't read the user's profile, and a stored copy goes stale) |
 | Signature date format | Pre-formatted string | A "/" in a sheet number-format follows the locale separator (nl-NL "-") | Date value + number-format |
 
 ## 11. Cross-cutting concerns

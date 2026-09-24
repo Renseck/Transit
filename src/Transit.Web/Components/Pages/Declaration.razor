@@ -53,7 +53,7 @@
 
     @if (_email is not null && _emailPeriod == (_year, _month))
     {
-        <EmailPanel Draft="_email" />
+        <EmailPanel Draft="_email" OnOpenDraft="OpenDraftAsync" />
     }
 
     <section aria-label="Declaration review">
@@ -127,6 +127,8 @@
     // The email for the month just generated; shown only while that month is on screen.
     private EmailDraft? _email;
     private (int Year, int Month) _emailPeriod;
+    private byte[]? _emailPdf;
+    private string _emailPdfName = "";
     private DeclarationDraft? _draft;
     private List<WorkLocation> _activeLocations = [];
 
@@ -266,6 +268,7 @@
                 await DownloadAsync(result.PdfFileName, result.PdfBytes);
                 _email = await Email.ComposeAsync(_year, _month);
                 _emailPeriod = (_year, _month);
+                (_emailPdf, _emailPdfName) = (result.PdfBytes, result.PdfFileName);
                 Snackbar.Add(_signs ? "Generated, signed and saved to History." : "Generated and saved to History.", Severity.Success);
                 ReportExport(result);
             }
@@ -282,6 +285,18 @@
         {
             _generating = false;
         }
+    }
+
+    // The .eml opens in Outlook as an editable new message with the signed PDF attached.
+    private async Task OpenDraftAsync()
+    {
+        if (_email is null || _emailPdf is null)
+        {
+            return;
+        }
+
+        var eml = EmlDraft.Build(_email, _emailPdfName, _emailPdf);
+        await DownloadAsync(Path.ChangeExtension(_emailPdfName, ".eml"), eml);
     }
 
     private void ReportExport(GeneratedDeclaration result)

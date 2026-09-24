@@ -2,7 +2,8 @@
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
 
-@* The rendered declaration email: copy subject/body, or open a prefilled Outlook message. *@
+@* The rendered declaration email: open a ready draft (.eml, PDF attached), a prefilled mailto
+   message, or copy subject/body by hand. *@
 <div class="tr-card tr-email">
     <div class="tr-section-eyebrow">@Title</div>
 
@@ -24,10 +25,19 @@
     </div>
 
     <div class="tr-board__nav">
-        <a class="tr-ctrl tr-ctrl--now" href="@Draft.MailtoUri">Open in Outlook</a>
-        @if (ShowAttachHint)
+        @if (OnOpenDraft.HasDelegate)
         {
-            <span class="tr-email__hint">Attach the downloaded PDF before sending.</span>
+            <button type="button" class="tr-ctrl tr-ctrl--now" @onclick="OnOpenDraft">Open draft</button>
+            <a class="tr-ctrl tr-ctrl--line" href="@Draft.MailtoUri">Open in Outlook</a>
+            <span class="tr-email__hint">The draft has the PDF attached; open it from your downloads, add your signature, send.</span>
+        }
+        else
+        {
+            <a class="tr-ctrl tr-ctrl--now" href="@Draft.MailtoUri">Open in Outlook</a>
+            @if (ShowAttachHint)
+            {
+                <span class="tr-email__hint">Attach the downloaded PDF before sending.</span>
+            }
         }
     </div>
 </div>
@@ -36,6 +46,9 @@
     [Parameter, EditorRequired] public EmailDraft Draft { get; set; } = default!;
     [Parameter] public string Title { get; set; } = "Email to finance";
     [Parameter] public bool ShowAttachHint { get; set; } = true;
+
+    // When set, offers "Open draft": the host downloads an .eml with the PDF attached.
+    [Parameter] public EventCallback OnOpenDraft { get; set; }
 
     private async Task CopyAsync(string text, string what)
     {
