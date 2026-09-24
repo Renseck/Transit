@@ -259,6 +259,7 @@
                 _email = await Email.ComposeAsync(_year, _month);
                 _emailPeriod = (_year, _month);
                 Snackbar.Add(_signs ? "Generated, signed and saved to History." : "Generated and saved to History.", Severity.Success);
+                ReportExport(result);
             }
             else
             {
@@ -272,6 +273,19 @@
         finally
         {
             _generating = false;
+        }
+    }
+
+    private void ReportExport(GeneratedDeclaration result)
+    {
+        if (result.ExportedPath is not null)
+        {
+            Snackbar.Add($"PDF copied to {result.ExportedPath}.", Severity.Info);
+        }
+
+        if (result.ExportError is not null)
+        {
+            Snackbar.Add($"Could not copy the PDF to the export folder: {result.ExportError} Check it on Settings.", Severity.Warning);
         }
     }
 

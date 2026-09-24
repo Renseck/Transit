@@ -38,6 +38,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IDeclarationRunStore, SqliteDeclarationRunStore>();
         services.AddScoped<ISheetPreviewReader, ClosedXmlSheetPreviewReader>();
         services.AddScoped<ISettingsStore, SqliteSettingsStore>();
+        services.AddScoped<IExportFolder, FileSystemExportFolder>();
         services.AddScoped<LocationService>();
         services.AddScoped<RouteService>();
         services.AddScoped<DeclarationService>();

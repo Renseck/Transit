@@ -6,6 +6,7 @@
 @using Transit.Core.Services
 @inject ISettingsStore SettingsStore
 @inject DeclarationEmailService Email
+@inject IExportFolder Export
 @inject ISnackbar Snackbar
 
 <PageTitle>Settings</PageTitle>
@@ -39,6 +40,41 @@
                         <code>{naam}</code> the employee name from the active template. Anything else is kept as typed.
                     </span>
                 </p>
+
+                <div class="tr-rule" role="separator"></div>
+
+                <div class="tr-section-eyebrow">Export folder</div>
+                <div class="tr-folder-field">
+                    <MudTextField T="string" Label="Copy each signed PDF to" @bind-Value="_settings.ExportFolder"
+                                  Placeholder="@ExportPlaceholder" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    <button type="button" class="tr-ctrl tr-ctrl--line" @onclick="CheckExportAsync"
+                            disabled="@string.IsNullOrWhiteSpace(_settings.ExportFolder)">Check</button>
+                </div>
+                @if (_exportCheck is not null)
+                {
+                    <p class="tr-note @(_exportCheck.Ok ? "" : "tr-note--signal")">
+                        <span class="tr-note__key">@(_exportCheck.Ok ? "Ready" : "Problem")</span>
+                        <span>
+                            @_exportCheck.Message
+                            @if (!_exportCheck.Ok)
+                            {
+                                <br />
+                                <span>If Transit runs under IIS, grant it access from an elevated prompt:</span>
+                                <code class="tr-email__cmd">icacls "@_settings.ExportFolder?.Trim()" /grant "IIS AppPool\Transit:(OI)(CI)M"</code>
+                            }
+                        </span>
+                    </p>
+                }
+                else
+                {
+                    <p class="tr-note">
+                        <span class="tr-note__key">Export</span>
+                        <span>
+                            Tip: in Explorer, select the folder and press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> (Copy as path), then paste here.
+                            Leave empty to only download. Files are named like the download and overwrite an older copy; History keeps every run.
+                        </span>
+                    </p>
+                }
             </div>
 
             @if (_preview is not null)
@@ -51,8 +87,12 @@
 
 @code {
     private const string RecipientPlaceholder = "finance@…";
+    private const string ExportPlaceholder = @"C:\Users\you\OneDrive\Declaraties";
+
+    private sealed record ExportCheck(bool Ok, string Message);
 
     private AppSettings? _settings;
+    private ExportCheck? _exportCheck;
     private EmailDraft? _preview;
     private int _previewYear;
     private int _previewMonth;
@@ -104,6 +144,7 @@
             return;
         }
 
+        _settings.ExportFolder = NormalizeFolder(_settings.ExportFolder);
         try
         {
             await SettingsStore.SaveAsync(_settings);
@@ -112,6 +153,40 @@
         catch (Exception ex)
         {
             Snackbar.Add($"Save failed: {ex.Message}", Severity.Warning);
+            return;
         }
+
+        // Saving an unusable folder is allowed (it may be fixed later), but say so now, not on the next generate.
+        if (_settings.ExportFolder is not null)
+        {
+            await CheckExportAsync();
+        }
+    }
+
+    private async Task CheckExportAsync()
+    {
+        if (_settings is null)
+        {
+            return;
+        }
+
+        var folder = _settings.ExportFolder = NormalizeFolder(_settings.ExportFolder);
+        if (folder is null)
+        {
+            _exportCheck = null;
+            return;
+        }
+
+        var problem = await Export.CheckAsync(folder);
+        _exportCheck = problem is null
+            ? new ExportCheck(true, $"Transit can write to {folder}.")
+            : new ExportCheck(false, problem);
+    }
+
+    // Explorer's "Copy as path" wraps the path in quotes; accept that paste as-is.
+    private static string? NormalizeFolder(string? value)
+    {
+        var folder = value?.Trim().Trim('"').Trim();
+        return string.IsNullOrEmpty(folder) ? null : folder;
     }
 }

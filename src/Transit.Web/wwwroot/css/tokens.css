@@ -990,3 +990,53 @@
         grid-column: 1 / -1;
     }
 }
+
+.tr-email__cmd {
+    display: block;
+    margin-top: 0.35rem;
+    font-family: var(--tr-font-mono);
+    font-size: 0.76rem;
+    overflow-wrap: anywhere;
+    user-select: all;
+}
+
+/* Section divider: a length of track ending in a stop, echoing the line bullets. */
+.tr-rule {
+    position: relative;
+    height: 2px;
+    margin: 0.5rem 0 0.25rem 5px;
+    background: var(--tr-rail-strong);
+}
+
+.tr-rule::before {
+    content: "";
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--tr-rail-strong);
+    border-radius: 50%;
+    background: var(--tr-paper);
+    transform: translateY(-50%);
+    box-sizing: border-box;
+}
+
+/* Path input + its actions: the path gets the width, the buttons stay compact. */
+.tr-folder-field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.tr-note kbd {
+    padding: 0 0.3rem;
+    font-family: var(--tr-font-mono);
+    font-size: 0.72rem;
+    color: var(--tr-text);
+    background: var(--tr-surface);
+    border: 1px solid var(--tr-rail-strong);
+    border-radius: 3px;
+    box-shadow: none;
+}

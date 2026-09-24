@@ -100,7 +100,8 @@ ITemplateProfileStore  // persist template file + mappings, select active
 IArtifactStore         // read/write/delete generated files on disk         (FileSystemArtifactStore)
 ISheetPreviewReader    // read a sheet's used range for preview (evaluates formulas) (ClosedXmlSheetPreviewReader)
 IDeclarationRunStore   // run metadata + frozen rows                        (SqliteDeclarationRunStore)
-ISettingsStore         // the single AppSettings row (email templates)      (SqliteSettingsStore)
+ISettingsStore         // the single AppSettings row (email, export folder)  (SqliteSettingsStore)
+IExportFolder          // copy the signed PDF to the user's export folder   (FileSystemExportFolder)
 ```
 
 Interfaces live in `Core`; implementations in `Infrastructure`. Anything that touches the
@@ -134,6 +135,9 @@ filesystem, the database, or shells out goes behind one of these.
 - **Declaration email.** `/settings` holds the finance email (recipient + subject/body templates with
   tokens `{maand}` `{Maand}` `{jaar}` `{naam}`, rendered by the pure `EmailComposer`). After a generate,
   `/declaration` shows it with copy buttons and a `mailto:` link; the PDF is attached by hand.
+- **Export folder.** With `AppSettings.ExportFolder` set, each generate also copies the signed PDF
+  there under its download name (overwriting an older copy). A failed copy is reported, never fatal —
+  history already holds the run. The only write outside `DataRoot`; it never creates folders.
 - **Generation is append-only (slice 5, live).** Every Generate creates a new `DeclarationRun`
   (all reviewed rows frozen; `TemplateName` frozen; `PdfFilePath` null on an xlsx-only run) plus new
   artifacts under `generated\{yyyy-MM}\{runId}\`; re-running a month makes another run and never

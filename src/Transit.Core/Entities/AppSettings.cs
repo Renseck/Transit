@@ -10,6 +10,9 @@ public class AppSettings
 
     public string? EmailRecipient { get; set; }
 
+    // Absolute folder that receives a copy of each signed PDF (e.g. a OneDrive folder); null = off.
+    public string? ExportFolder { get; set; }
+
     public string EmailSubjectTemplate { get; set; } = "Reiskostendeclaratie {Maand} {jaar} {naam}";
 
     public string EmailBodyTemplate { get; set; } =

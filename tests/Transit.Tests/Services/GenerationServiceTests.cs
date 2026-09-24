@@ -28,23 +28,49 @@ public class GenerationServiceTests
         ],
     };
 
+    // Builds the service over fakes + a real in-memory history; dispose cleans the DB and artifact root.
+    private sealed class Harness : IDisposable
+    {
+        private readonly TestDbContextFactory _factory = new();
+        private readonly string _root = Path.Combine(Path.GetTempPath(), "transit-generation-test", Guid.NewGuid().ToString("N"));
+
+        public RecordingWriter Writer { get; } = new();
+        public RecordingConverter Converter { get; } = new();
+        public RecordingExportFolder Export { get; } = new();
+        public AppSettings Settings { get; } = new();
+        public DeclarationHistoryService History { get; }
+        public GenerationService Service { get; }
+
+        public Harness()
+        {
+            History = new DeclarationHistoryService(
+                new SqliteDeclarationRunStore(_factory),
+                new FileSystemArtifactStore(Options.Create(new StorageOptions { DataRoot = _root })));
+            Service = new GenerationService(
+                new StubProfileStore(Profile()), new DeclarationService(new EmptyAttendance(), new HomeOnly(), new NoRoutes()),
+                Writer, Converter, History, new FixedTime(new DateTimeOffset(2026, 9, 2, 10, 0, 0, TimeSpan.Zero)),
+                new StubSettingsStore(Settings), Export);
+        }
+
+        public Task<GeneratedDeclaration> GenerateAugustAsync()
+            => Service.GenerateAsync(2026, 8, new Dictionary<DateOnly, int?>());
+
+        public void Dispose()
+        {
+            _factory.Dispose();
+            if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+        }
+    }
+
     [Fact]
     public async Task Generate_signs_only_the_pdf_with_todays_date()
     {
-        var writer = new RecordingWriter();
-        var converter = new RecordingConverter();
-        var factory = new TestDbContextFactory();
-        var root = Path.Combine(Path.GetTempPath(), "transit-generation-test", Guid.NewGuid().ToString("N"));
-        try
+        using var h = new Harness();
+        var writer = h.Writer;
+        var converter = h.Converter;
+        var history = h.History;
         {
-            var history = new DeclarationHistoryService(
-                new SqliteDeclarationRunStore(factory),
-                new FileSystemArtifactStore(Options.Create(new StorageOptions { DataRoot = root })));
-            var service = new GenerationService(
-                new StubProfileStore(Profile()), new DeclarationService(new EmptyAttendance(), new HomeOnly(), new NoRoutes()),
-                writer, converter, history, new FixedTime(new DateTimeOffset(2026, 9, 2, 10, 0, 0, TimeSpan.Zero)));
-
-            var result = await service.GenerateAsync(2026, 8, new Dictionary<DateOnly, int?>());
+            var result = await h.GenerateAugustAsync();
 
             Assert.Equal([null, new DateOnly(2026, 9, 2)], writer.SignedOnCalls);
             Assert.Equal(SignedXlsx, converter.Input);
@@ -54,11 +80,84 @@ public class GenerationServiceTests
             Assert.Equal(Pdf, await history.OpenArtifactAsync(result.RunId, ArtifactKind.Pdf));
             Assert.Equal("08_2026_reiskosten_rve.pdf", result.PdfFileName);
         }
-        finally
+    }
+
+    [Fact]
+    public async Task Generate_without_an_export_folder_exports_nothing()
+    {
+        using var h = new Harness();
+
+        var result = await h.GenerateAugustAsync();
+
+        Assert.Empty(h.Export.Writes);
+        Assert.Null(result.ExportedPath);
+        Assert.Null(result.ExportError);
+    }
+
+    [Fact]
+    public async Task Generate_copies_the_signed_pdf_to_the_export_folder_under_its_download_name()
+    {
+        using var h = new Harness();
+        h.Settings.ExportFolder = @"C:\Exports";
+
+        var result = await h.GenerateAugustAsync();
+
+        var write = Assert.Single(h.Export.Writes);
+        Assert.Equal((@"C:\Exports", "08_2026_reiskosten_rve.pdf"), (write.Folder, write.FileName));
+        Assert.Equal(Pdf, write.Content);
+        Assert.Equal(@"C:\Exports\08_2026_reiskosten_rve.pdf", result.ExportedPath);
+    }
+
+    [Fact]
+    public async Task Export_failure_keeps_the_run_and_reports_the_reason()
+    {
+        using var h = new Harness();
+        h.Settings.ExportFolder = @"C:\Exports";
+        h.Export.Failure = new UnauthorizedAccessException("Access denied.");
+
+        var result = await h.GenerateAugustAsync();
+
+        Assert.Null(result.ExportedPath);
+        Assert.Equal("Access denied.", result.ExportError);
+        Assert.Equal(Pdf, await h.History.OpenArtifactAsync(result.RunId, ArtifactKind.Pdf));   // run still saved
+    }
+
+    [Fact]
+    public async Task Generate_without_a_pdf_exports_nothing()
+    {
+        using var h = new Harness();
+        h.Settings.ExportFolder = @"C:\Exports";
+        h.Converter.Failure = new InvalidOperationException("LibreOffice missing");
+
+        var result = await h.GenerateAugustAsync();
+
+        Assert.Null(result.PdfBytes);
+        Assert.Empty(h.Export.Writes);
+    }
+
+    private sealed class RecordingExportFolder : IExportFolder
+    {
+        public List<(string Folder, string FileName, byte[] Content)> Writes { get; } = [];
+        public Exception? Failure { get; set; }
+
+        public Task<string> WriteAsync(string folder, string fileName, byte[] content, CancellationToken ct = default)
         {
-            factory.Dispose();
-            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            if (Failure is not null)
+            {
+                throw Failure;
+            }
+
+            Writes.Add((folder, fileName, content));
+            return Task.FromResult(Path.Combine(folder, fileName));
         }
+
+        public Task<string?> CheckAsync(string folder, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    private sealed class StubSettingsStore(AppSettings settings) : ISettingsStore
+    {
+        public Task<AppSettings> GetAsync(CancellationToken ct = default) => Task.FromResult(settings);
+        public Task SaveAsync(AppSettings s, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private sealed class RecordingWriter : IExcelWriter
@@ -78,9 +177,15 @@ public class GenerationServiceTests
     private sealed class RecordingConverter : IPdfConverter
     {
         public byte[]? Input { get; private set; }
+        public Exception? Failure { get; set; }
 
         public Task<byte[]> ConvertToPdfAsync(byte[] xlsxBytes, CancellationToken ct = default)
         {
+            if (Failure is not null)
+            {
+                throw Failure;
+            }
+
             Input = xlsxBytes;
             return Task.FromResult(Pdf);
         }

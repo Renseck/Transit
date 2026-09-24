@@ -100,7 +100,8 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
   shared `TravelKmCounter`), summing the latest run per declared month — `DeclarationRunSummary.TotalKm`
   is projected from each run's frozen travel rows, so re-runs never double-count.
 - **Settings page** — the declaration email: recipient, subject and body templates with a live preview
-  for the previous month. Tokens `{maand}`/`{Maand}`/`{jaar}`/`{naam}` (pure `EmailComposer`: fixed
+  for the previous month; and the optional **export folder** with a *Check* (probe-file write) that, on
+  failure, shows the `icacls` grant for the IIS app-pool identity. Tokens `{maand}`/`{Maand}`/`{jaar}`/`{naam}` (pure `EmailComposer`: fixed
   set, plain replaces, unknown tokens kept as typed; `{naam}` = the active template's EmployeeName).
 - **Overview page (home)** — a status dashboard + launchpad: this month's capture counts, a nudge to
   declare the previous month, a location breakdown, recent runs with downloads, and setup health.
@@ -126,6 +127,8 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
   (unsigned) and a signed copy (today's date, via `TimeProvider`) → convert the signed copy to pdf →
   persist an append-only run + artifacts.
 - `ISettingsStore` → `SqliteSettingsStore` — the single `AppSettings` row; defaults until saved.
+- `IExportFolder` → `FileSystemExportFolder` — copy the signed PDF into the user's export folder
+  (overwrite, never auto-create); check that a folder is an existing, writable absolute path.
 - `DeclarationEmailService` — loads settings + the active template's employee name, delegates to the
   pure `EmailComposer`.
 
@@ -190,6 +193,7 @@ DeclarationRow                            // frozen DeclarationDraftRow + FK
 AppSettings                               // single row, Id = 1; absent row = defaults
   EmailRecipient?,
   EmailSubjectTemplate, EmailBodyTemplate // tokens {maand} {Maand} {jaar} {naam}
+  ExportFolder?                           // absolute path; each signed PDF is copied here; null = off
 ```
 
 **Km rule:** travel day (`CountsAsTravel`) → chosen route's `TotalKm`
@@ -357,6 +361,7 @@ backup — it is a folder-level responsibility.
 | Signature | Name in a script font + generate date, written into template cells before PDF conversion | Mirrors Adobe's typed signature; no secret, no new dependency, reuses cell mappings | Stamped PNG (image storage + DPAPI for no real gain); PAdES certificate signing (library + trusted cert) |
 | What gets signed | PDF only; stored xlsx stays unsigned (template filled twice) | The PDF is what's handed in | Sign both (signature leaks into the editable file) |
 | When signing happens | Only on an explicit Generate click | Signing attests the reviewed rows; unattended signing bypasses review | Auto-generate + sign on the 1st |
+| Export copy | Server copies the signed PDF into a configured folder after each generate (overwrite, non-fatal) | The app runs on the same laptop, so the server can write the file; works in any browser | Browser picks a folder (File System Access API needs HTTPS/localhost; transit.local is neither); Edge "ask where to save" (a dialog every time) |
 | Email templating | Fixed token set, plain string replaces | Covers month/year/name without a parser; typos stay visible | Hardcoded text (code change per wording); a templating engine (overkill) |
 | Settings storage | Single-row `AppSettings` table behind `ISettingsStore` | Editable in the UI, survives republish, one home for future settings | `appsettings.json` (clumsy under IIS, overwritten on publish); on `TemplateProfile` (lost on new template version) |
 | Email hand-off | Copy buttons + `mailto:` link; PDF attached manually | No Office automation, works with any mail client | `.eml` draft with attachment (deferred until verified on the user's Outlook) |

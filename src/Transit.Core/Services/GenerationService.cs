@@ -11,6 +11,8 @@ namespace Transit.Core.Services;
 /// Only the PDF is signed: the template is filled twice from the same draft — unsigned for the stored
 /// xlsx, signed with today's date for the PDF. Generating is the signing act; nothing signs unattended.
 /// PDF failure is non-fatal — the xlsx is still returned and persisted with a null PdfBytes/PdfFilePath.
+/// With an export folder set, the signed PDF is then copied there under its download name; a failed
+/// copy is reported, never fatal (history already holds the run).
 /// </summary>
 public sealed class GenerationService
 {
@@ -20,11 +22,16 @@ public sealed class GenerationService
     private readonly IPdfConverter _pdf;
     private readonly DeclarationHistoryService _history;
     private readonly TimeProvider _time;
+    private readonly ISettingsStore _settings;
+    private readonly IExportFolder _export;
 
     public GenerationService(
         ITemplateProfileStore profiles, DeclarationService declarations,
-        IExcelWriter writer, IPdfConverter pdf, DeclarationHistoryService history, TimeProvider time)
+        IExcelWriter writer, IPdfConverter pdf, DeclarationHistoryService history, TimeProvider time,
+        ISettingsStore settings, IExportFolder export)
     {
+        _settings = settings;
+        _export = export;
         _profiles = profiles;
         _declarations = declarations;
         _writer = writer;
@@ -50,8 +57,27 @@ public sealed class GenerationService
         var pdf = await TryConvertAsync(signedXlsx, ct);
 
         var run = await _history.SaveAsync(draft, profile, xlsx, pdf, ct);
+        var (exportedPath, exportError) = await TryExportAsync(pdf, $"{stem}.pdf", ct);
 
-        return new GeneratedDeclaration(xlsx, pdf, $"{stem}.xlsx", $"{stem}.pdf", run.Id);
+        return new GeneratedDeclaration(xlsx, pdf, $"{stem}.xlsx", $"{stem}.pdf", run.Id, exportedPath, exportError);
+    }
+
+    private async Task<(string? Path, string? Error)> TryExportAsync(byte[]? pdf, string fileName, CancellationToken ct)
+    {
+        var folder = (await _settings.GetAsync(ct)).ExportFolder;
+        if (pdf is null || string.IsNullOrWhiteSpace(folder))
+        {
+            return (null, null);
+        }
+
+        try
+        {
+            return (await _export.WriteAsync(folder.Trim(), fileName, pdf, ct), null);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return (null, ex.Message);
+        }
     }
 
     // Buffered once: the template is filled twice and a stream reads only once.
