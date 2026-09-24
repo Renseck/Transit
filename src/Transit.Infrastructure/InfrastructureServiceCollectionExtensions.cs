@@ -37,11 +37,13 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IArtifactStore, FileSystemArtifactStore>();
         services.AddScoped<IDeclarationRunStore, SqliteDeclarationRunStore>();
         services.AddScoped<ISheetPreviewReader, ClosedXmlSheetPreviewReader>();
+        services.AddScoped<ISettingsStore, SqliteSettingsStore>();
         services.AddScoped<LocationService>();
         services.AddScoped<RouteService>();
         services.AddScoped<DeclarationService>();
         services.AddScoped<DeclarationHistoryService>();
         services.AddScoped<GenerationService>();
+        services.AddScoped<DeclarationEmailService>();
         services.TryAddSingleton(TimeProvider.System);
 
         return services;

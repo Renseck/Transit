@@ -1,0 +1,117 @@
+@page "/settings"
+@rendermode InteractiveServer
+@using Transit.Core.Abstractions
+@using Transit.Core.Email
+@using Transit.Core.Entities
+@using Transit.Core.Services
+@inject ISettingsStore SettingsStore
+@inject DeclarationEmailService Email
+@inject ISnackbar Snackbar
+
+<PageTitle>Settings</PageTitle>
+
+<div class="tr-stack">
+    <header class="tr-board">
+        <div>
+            <div class="tr-board__eyebrow">Settings</div>
+            <h1 class="tr-board__month">Preferences</h1>
+        </div>
+        <nav class="tr-board__nav">
+            <button type="button" class="tr-ctrl tr-ctrl--now" @onclick="SaveAsync" disabled="@(_settings is null)">Save</button>
+        </nav>
+    </header>
+
+    @if (_settings is not null)
+    {
+        <div class="tr-map-grid">
+            <div class="tr-stack" style="gap:1rem;">
+                <div class="tr-section-eyebrow">Declaration email</div>
+                <MudTextField T="string" Label="Recipient" Value="_settings.EmailRecipient" ValueChanged="OnRecipientChanged"
+                              Placeholder="@RecipientPlaceholder" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" DebounceInterval="300" />
+                <MudTextField T="string" Label="Subject" Value="_settings.EmailSubjectTemplate" ValueChanged="OnSubjectChanged"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" DebounceInterval="300" />
+                <MudTextField T="string" Label="Body" Value="_settings.EmailBodyTemplate" ValueChanged="OnBodyChanged"
+                              Lines="9" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" DebounceInterval="300" />
+                <p class="tr-note">
+                    <span class="tr-note__key">Tokens</span>
+                    <span>
+                        <code>{maand}</code> augustus · <code>{Maand}</code> Augustus · <code>{jaar}</code> 2026 ·
+                        <code>{naam}</code> the employee name from the active template. Anything else is kept as typed.
+                    </span>
+                </p>
+            </div>
+
+            @if (_preview is not null)
+            {
+                <EmailPanel Draft="_preview" Title="@($"Preview · {_previewLabel}")" ShowAttachHint="false" />
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private const string RecipientPlaceholder = "finance@…";
+
+    private AppSettings? _settings;
+    private EmailDraft? _preview;
+    private int _previewYear;
+    private int _previewMonth;
+    private string _previewLabel = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Preview the month you'd typically be declaring: the previous one.
+        var previous = DateOnly.FromDateTime(DateTime.Now).AddMonths(-1);
+        _previewYear = previous.Year;
+        _previewMonth = previous.Month;
+        _previewLabel = previous.ToString("MMMM yyyy");
+
+        _settings = await SettingsStore.GetAsync();
+        await RefreshPreviewAsync();
+    }
+
+    private Task OnRecipientChanged(string value) => UpdateAsync(s => s.EmailRecipient = value);
+
+    private Task OnSubjectChanged(string value) => UpdateAsync(s => s.EmailSubjectTemplate = value ?? "");
+
+    private Task OnBodyChanged(string value) => UpdateAsync(s => s.EmailBodyTemplate = value ?? "");
+
+    private async Task UpdateAsync(Action<AppSettings> apply)
+    {
+        if (_settings is null)
+        {
+            return;
+        }
+
+        apply(_settings);
+        await RefreshPreviewAsync();
+    }
+
+    private async Task RefreshPreviewAsync()
+    {
+        if (_settings is null)
+        {
+            return;
+        }
+
+        _preview = await Email.PreviewAsync(_settings, _previewYear, _previewMonth);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_settings is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await SettingsStore.SaveAsync(_settings);
+            Snackbar.Add("Settings saved.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Save failed: {ex.Message}", Severity.Warning);
+        }
+    }
+}

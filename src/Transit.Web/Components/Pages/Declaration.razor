@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using Transit.Core.Abstractions
 @using Transit.Core.Declarations
+@using Transit.Core.Email
 @using Transit.Core.Entities
 @using Transit.Core.Services
 @using Transit.Core.Templates
@@ -10,6 +11,7 @@
 @inject LocationService Locations
 @inject IAttendanceStore AttendanceStore
 @inject GenerationService Generation
+@inject DeclarationEmailService Email
 @inject ITemplateProfileStore Profiles
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
@@ -47,6 +49,11 @@
             <span class="tr-note__key">Setup</span>
             <span>No active template yet. <a href="template">Set one up</a> before generating.</span>
         </p>
+    }
+
+    @if (_email is not null && _emailPeriod == (_year, _month))
+    {
+        <EmailPanel Draft="_email" />
     }
 
     <section aria-label="Declaration review">
@@ -116,6 +123,10 @@
     private bool _hasActiveProfile;
     private bool _signs;
     private bool _generating;
+
+    // The email for the month just generated; shown only while that month is on screen.
+    private EmailDraft? _email;
+    private (int Year, int Month) _emailPeriod;
     private DeclarationDraft? _draft;
     private List<WorkLocation> _activeLocations = [];
     private List<Route> _routes = [];
@@ -245,6 +256,8 @@
             if (result.PdfBytes is not null)
             {
                 await DownloadAsync(result.PdfFileName, result.PdfBytes);
+                _email = await Email.ComposeAsync(_year, _month);
+                _emailPeriod = (_year, _month);
                 Snackbar.Add(_signs ? "Generated, signed and saved to History." : "Generated and saved to History.", Severity.Success);
             }
             else

@@ -100,6 +100,7 @@ ITemplateProfileStore  // persist template file + mappings, select active
 IArtifactStore         // read/write/delete generated files on disk         (FileSystemArtifactStore)
 ISheetPreviewReader    // read a sheet's used range for preview (evaluates formulas) (ClosedXmlSheetPreviewReader)
 IDeclarationRunStore   // run metadata + frozen rows                        (SqliteDeclarationRunStore)
+ISettingsStore         // the single AppSettings row (email templates)      (SqliteSettingsStore)
 ```
 
 Interfaces live in `Core`; implementations in `Infrastructure`. Anything that touches the
@@ -130,6 +131,9 @@ filesystem, the database, or shells out goes behind one of these.
 - **Generate & sign.** A mapped `SignatureName` cell makes Generate the signing act: the template is
   filled twice — unsigned for the stored xlsx, signed (name in a script font + today's date) for the
   PDF only. Never sign unattended; the signed workbook is never persisted.
+- **Declaration email.** `/settings` holds the finance email (recipient + subject/body templates with
+  tokens `{maand}` `{Maand}` `{jaar}` `{naam}`, rendered by the pure `EmailComposer`). After a generate,
+  `/declaration` shows it with copy buttons and a `mailto:` link; the PDF is attached by hand.
 - **Generation is append-only (slice 5, live).** Every Generate creates a new `DeclarationRun`
   (all reviewed rows frozen; `TemplateName` frozen; `PdfFilePath` null on an xlsx-only run) plus new
   artifacts under `generated\{yyyy-MM}\{runId}\`; re-running a month makes another run and never

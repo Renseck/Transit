@@ -85,7 +85,9 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
 
 - **Attendance page** — the calendar marking surface described in §3.
 - **Declaration page** — pick month → pull → review grid (date, location, editable route per
-  travel day, default pre-selected) → generate.
+  travel day, default pre-selected) → generate. After a generate with a PDF, an `EmailPanel` shows the
+  rendered finance email (copy subject/body, or *Open in Outlook* via a `mailto:` link — the PDF is
+  attached by hand; `mailto:` cannot carry attachments).
 - **Locations & routes page** — CRUD over work locations (with the travel and default-for-
   unmarked flags) and over routes (with outbound/return km and a default).
 - **Template / config page** — upload the employer template; map fields to columns and static
@@ -97,6 +99,9 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
   `HistoryCalendar` helper; no store change. The header shows a **year travel-distance total** (via the
   shared `TravelKmCounter`), summing the latest run per declared month — `DeclarationRunSummary.TotalKm`
   is projected from each run's frozen travel rows, so re-runs never double-count.
+- **Settings page** — the declaration email: recipient, subject and body templates with a live preview
+  for the previous month. Tokens `{maand}`/`{Maand}`/`{jaar}`/`{naam}` (pure `EmailComposer`: fixed
+  set, plain replaces, unknown tokens kept as typed; `{naam}` = the active template's EmployeeName).
 - **Overview page (home)** — a status dashboard + launchpad: this month's capture counts, a nudge to
   declare the previous month, a location breakdown, recent runs with downloads, and setup health.
 
@@ -120,6 +125,9 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
 - `GenerationService` — active profile → reviewed draft (defaults + route overrides) → write xlsx
   (unsigned) and a signed copy (today's date, via `TimeProvider`) → convert the signed copy to pdf →
   persist an append-only run + artifacts.
+- `ISettingsStore` → `SqliteSettingsStore` — the single `AppSettings` row; defaults until saved.
+- `DeclarationEmailService` — loads settings + the active template's employee name, delegates to the
+  pure `EmailComposer`.
 
 ### Persistence
 
@@ -178,6 +186,10 @@ DeclarationRow                            // frozen DeclarationDraftRow + FK
   RouteId?, RouteName?,                    // RouteName frozen as a string
   FromLocationName?, FromPostcode?, ToLocationName?, ToPostcode?,
   OutboundKm, ReturnKm, Kilometers, HasNoRoute
+
+AppSettings                               // single row, Id = 1; absent row = defaults
+  EmailRecipient?,
+  EmailSubjectTemplate, EmailBodyTemplate // tokens {maand} {Maand} {jaar} {naam}
 ```
 
 **Km rule:** travel day (`CountsAsTravel`) → chosen route's `TotalKm`
@@ -345,6 +357,9 @@ backup — it is a folder-level responsibility.
 | Signature | Name in a script font + generate date, written into template cells before PDF conversion | Mirrors Adobe's typed signature; no secret, no new dependency, reuses cell mappings | Stamped PNG (image storage + DPAPI for no real gain); PAdES certificate signing (library + trusted cert) |
 | What gets signed | PDF only; stored xlsx stays unsigned (template filled twice) | The PDF is what's handed in | Sign both (signature leaks into the editable file) |
 | When signing happens | Only on an explicit Generate click | Signing attests the reviewed rows; unattended signing bypasses review | Auto-generate + sign on the 1st |
+| Email templating | Fixed token set, plain string replaces | Covers month/year/name without a parser; typos stay visible | Hardcoded text (code change per wording); a templating engine (overkill) |
+| Settings storage | Single-row `AppSettings` table behind `ISettingsStore` | Editable in the UI, survives republish, one home for future settings | `appsettings.json` (clumsy under IIS, overwritten on publish); on `TemplateProfile` (lost on new template version) |
+| Email hand-off | Copy buttons + `mailto:` link; PDF attached manually | No Office automation, works with any mail client | `.eml` draft with attachment (deferred until verified on the user's Outlook) |
 | Signature date format | Pre-formatted string | A "/" in a sheet number-format follows the locale separator (nl-NL "-") | Date value + number-format |
 
 ## 11. Cross-cutting concerns

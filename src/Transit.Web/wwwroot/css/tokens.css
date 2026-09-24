@@ -938,3 +938,55 @@
 .tr-km-counter__value { font-size: 1.4rem; font-weight: 600; }
 .tr-km-counter__unit { font-size: 0.85rem; opacity: 0.7; }
 .tr-km-counter__days { font-size: 0.8rem; opacity: 0.6; margin-left: 0.5rem; }
+/* ---- Declaration email (EmailPanel) ---- */
+.tr-email__field {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr auto;
+    align-items: baseline;
+    gap: 0.75rem;
+}
+
+.tr-email__label {
+    font-family: var(--tr-font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--tr-muted);
+}
+
+.tr-email__value {
+    overflow-wrap: anywhere;
+}
+
+.tr-email__value--empty {
+    color: var(--tr-muted);
+    font-style: italic;
+}
+
+.tr-email__body {
+    margin: 0;
+    padding: 0.7rem 0.9rem;
+    background: var(--tr-paper);
+    border: 1px solid var(--tr-rail);
+    border-radius: var(--tr-radius-sm);
+    font-family: var(--tr-font-body);
+    font-size: 0.9rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.tr-email__hint {
+    font-size: 0.82rem;
+    color: var(--tr-muted);
+    align-self: center;
+}
+
+@media (max-width: 640px) {
+    .tr-email__field {
+        grid-template-columns: 1fr auto;
+    }
+
+    .tr-email__label {
+        grid-column: 1 / -1;
+    }
+}

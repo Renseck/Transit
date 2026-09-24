@@ -1,0 +1,46 @@
+@using Transit.Core.Email
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+@* The rendered declaration email: copy subject/body, or open a prefilled Outlook message. *@
+<div class="tr-card tr-email">
+    <div class="tr-section-eyebrow">@Title</div>
+
+    <div class="tr-email__field">
+        <span class="tr-email__label">To</span>
+        <span class="tr-email__value @(Draft.To is null ? "tr-email__value--empty" : "")">@(Draft.To ?? "No recipient set")</span>
+    </div>
+
+    <div class="tr-email__field">
+        <span class="tr-email__label">Subject</span>
+        <span class="tr-email__value">@Draft.Subject</span>
+        <button type="button" class="tr-ctrl tr-ctrl--line" @onclick='() => CopyAsync(Draft.Subject, "Subject")'>Copy</button>
+    </div>
+
+    <div class="tr-email__field tr-email__field--body">
+        <span class="tr-email__label">Body</span>
+        <pre class="tr-email__body">@Draft.Body</pre>
+        <button type="button" class="tr-ctrl tr-ctrl--line" @onclick='() => CopyAsync(Draft.Body, "Body")'>Copy</button>
+    </div>
+
+    <div class="tr-board__nav">
+        <a class="tr-ctrl tr-ctrl--now" href="@Draft.MailtoUri">Open in Outlook</a>
+        @if (ShowAttachHint)
+        {
+            <span class="tr-email__hint">Attach the downloaded PDF before sending.</span>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public EmailDraft Draft { get; set; } = default!;
+    [Parameter] public string Title { get; set; } = "Email to finance";
+    [Parameter] public bool ShowAttachHint { get; set; } = true;
+
+    private async Task CopyAsync(string text, string what)
+    {
+        var copied = await JS.InvokeAsync<bool>("transitCopyText", text);
+        Snackbar.Add(copied ? $"{what} copied." : $"Could not copy the {what.ToLowerInvariant()}; select it and copy by hand.",
+            copied ? Severity.Success : Severity.Warning);
+    }
+}

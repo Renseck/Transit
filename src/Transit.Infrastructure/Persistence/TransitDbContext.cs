@@ -12,6 +12,7 @@ public sealed class TransitDbContext : DbContext
     public DbSet<Route> Routes => Set<Route>();
     public DbSet<TemplateProfile> TemplateProfiles => Set<TemplateProfile>();
     public DbSet<DeclarationRun> DeclarationRuns => Set<DeclarationRun>();
+    public DbSet<AppSettings> AppSettings => Set<AppSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -85,6 +86,14 @@ public sealed class TransitDbContext : DbContext
                 .WithOne()
                 .HasForeignKey(r => r.DeclarationRunId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AppSettings>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();   // singleton row, always Id = 1
+            e.Property(x => x.EmailSubjectTemplate).IsRequired();
+            e.Property(x => x.EmailBodyTemplate).IsRequired();
         });
 
         modelBuilder.Entity<DeclarationRow>(e =>
