@@ -1,25 +1,36 @@
 using ClosedXML.Excel;
+using Microsoft.Extensions.Options;
 using Transit.Core.Abstractions;
 using Transit.Core.Declarations;
 using Transit.Core.Entities;
 using Transit.Core.Templates;
+using Transit.Infrastructure.Configuration;
 
 namespace Transit.Infrastructure.Excel;
 
 /// <summary>
 /// Fills the uploaded employer template in place: writes header cells and one row per travel day,
 /// auto-inserting rows when the month exceeds the template's physical data rows so the template's
-/// own SUM expands. Never rebuilds the workbook; never writes a monthly total.
+/// own SUM expands. Never rebuilds the workbook; never writes a monthly total. With a signing date it
+/// also writes the signature cells, the name in the configured handwriting font.
 /// </summary>
 public sealed class ClosedXmlTemplateWriter : IExcelWriter
 {
+    private readonly SignatureOptions _signature;
+
+    public ClosedXmlTemplateWriter(IOptions<SignatureOptions> signature)
+    {
+        _signature = signature.Value;
+    }
+
     public Task<byte[]> FillAsync(
-        TemplateProfile profile, Stream templateBytes, DeclarationDraft draft, CancellationToken ct = default)
+        TemplateProfile profile, Stream templateBytes, DeclarationDraft draft,
+        DateOnly? signedOn = null, CancellationToken ct = default)
     {
         using var workbook = new XLWorkbook(templateBytes);
         var sheet = SelectSheet(workbook, profile.SheetSelector);
 
-        WriteHeaderCells(sheet, profile, draft);
+        WriteHeaderCells(sheet, profile, draft, signedOn);
 
         var travelRows = draft.Rows.Where(r => r.CountsAsTravel).OrderBy(r => r.Date).ToList();
         var toInsert = TemplateMapping.RowsToInsert(travelRows.Count, profile.DataRowCount);
@@ -47,17 +58,31 @@ public sealed class ClosedXmlTemplateWriter : IExcelWriter
         return workbook.Worksheet(selector);
     }
 
-    private static void WriteHeaderCells(IXLWorksheet sheet, TemplateProfile profile, DeclarationDraft draft)
+    private void WriteHeaderCells(IXLWorksheet sheet, TemplateProfile profile, DeclarationDraft draft, DateOnly? signedOn)
     {
+        var employeeName = TemplateMapping.EmployeeName(profile.CellMappings);
         foreach (var mapping in profile.CellMappings)
         {
-            var value = TemplateMapping.ResolveCellValue(mapping, draft.Year, draft.Month);
+            var value = TemplateMapping.ResolveCellValue(mapping, draft.Year, draft.Month, signedOn, employeeName);
             if (value is null)
             {
                 continue;
             }
 
-            SetCell(sheet.Cell(mapping.CellRef), value, mapping.Format);
+            var cell = sheet.Cell(mapping.CellRef);
+            if (mapping.Source == TemplateCellSource.SignatureDate)
+            {
+                // Already formatted by the resolver; its Format is a .NET date format, not a sheet format.
+                cell.Value = value.ToString();
+                continue;
+            }
+
+            SetCell(cell, value, mapping.Format);
+            if (mapping.Source == TemplateCellSource.SignatureName)
+            {
+                cell.Style.Font.FontName = _signature.FontName;
+                cell.Style.Font.FontSize = _signature.FontSize;
+            }
         }
     }
 

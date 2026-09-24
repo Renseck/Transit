@@ -1,6 +1,8 @@
 using ClosedXML.Excel;
+using Microsoft.Extensions.Options;
 using Transit.Core.Declarations;
 using Transit.Core.Entities;
+using Transit.Infrastructure.Configuration;
 using Transit.Infrastructure.Excel;
 using Xunit;
 
@@ -41,10 +43,20 @@ public class ClosedXmlTemplateWriterTests
         date, date.ToString("dddd"), 1, "Home", "#4C566A", false, true,
         null, null, 0m, 0m, 0m, false);
 
-    private static byte[] Fill(TemplateProfile profile, DeclarationDraft draft)
+    private static byte[] Fill(TemplateProfile profile, DeclarationDraft draft, DateOnly? signedOn = null)
     {
         using var stream = File.OpenRead(FixturePath);
-        return new ClosedXmlTemplateWriter().FillAsync(profile, stream, draft).GetAwaiter().GetResult();
+        var options = Options.Create(new SignatureOptions { FontName = "Segoe Script", FontSize = 16 });
+        return new ClosedXmlTemplateWriter(options).FillAsync(profile, stream, draft, signedOn).GetAwaiter().GetResult();
+    }
+
+    // Profile() plus the two signature cells, parked in cells the fixture leaves empty.
+    private static TemplateProfile SigningProfile()
+    {
+        var profile = Profile();
+        profile.CellMappings.Add(new CellMapping { CellRef = "H40", Source = TemplateCellSource.SignatureName });
+        profile.CellMappings.Add(new CellMapping { CellRef = "H38", Source = TemplateCellSource.SignatureDate });
+        return profile;
     }
 
     [Fact]
@@ -84,5 +96,32 @@ public class ClosedXmlTemplateWriterTests
 
         Assert.Equal(20.0, sheet.Cell("F25").GetDouble(), 3);       // 18th data row now populated (8..25)
         Assert.Equal("SUM(F8:F25)", sheet.Cell("F27").FormulaA1);   // SUM expanded; total shifted down by 3
+    }
+
+    [Fact]
+    public void Unsigned_fill_leaves_the_signature_cells_blank()
+    {
+        var draft = new DeclarationDraft(2026, 8, [Travel(new DateOnly(2026, 8, 17), 144.4m)]);
+
+        using var wb = new XLWorkbook(new MemoryStream(Fill(SigningProfile(), draft)));
+        var sheet = wb.Worksheet("Blad1");
+
+        Assert.True(sheet.Cell("H40").IsEmpty());
+        Assert.True(sheet.Cell("H38").IsEmpty());
+    }
+
+    [Fact]
+    public void Signed_fill_writes_the_name_in_the_signature_font_and_the_date()
+    {
+        var draft = new DeclarationDraft(2026, 8, [Travel(new DateOnly(2026, 8, 17), 144.4m)]);
+
+        using var wb = new XLWorkbook(new MemoryStream(Fill(SigningProfile(), draft, new DateOnly(2026, 9, 2))));
+        var sheet = wb.Worksheet("Blad1");
+
+        var name = sheet.Cell("H40");
+        Assert.Equal("Rens van Eck", name.GetString());   // falls back to the EmployeeName literal
+        Assert.Equal("Segoe Script", name.Style.Font.FontName);
+        Assert.Equal(16, name.Style.Font.FontSize);
+        Assert.Equal("02/09/2026", sheet.Cell("H38").GetString());
     }
 }

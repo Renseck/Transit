@@ -127,6 +127,9 @@ filesystem, the database, or shells out goes behind one of these.
   active-profile → draft → xlsx → pdf. The `/template` page configures it; `/declaration`
   generates. **Slice 4 generation is ephemeral** — bytes stream to the browser, nothing is
   persisted yet.
+- **Generate & sign.** A mapped `SignatureName` cell makes Generate the signing act: the template is
+  filled twice — unsigned for the stored xlsx, signed (name in a script font + today's date) for the
+  PDF only. Never sign unattended; the signed workbook is never persisted.
 - **Generation is append-only (slice 5, live).** Every Generate creates a new `DeclarationRun`
   (all reviewed rows frozen; `TemplateName` frozen; `PdfFilePath` null on an xlsx-only run) plus new
   artifacts under `generated\{yyyy-MM}\{runId}\`; re-running a month makes another run and never

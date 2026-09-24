@@ -106,7 +106,8 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
 - `LocationService` — location CRUD; resolve the default-for-unmarked location.
 - `RouteService` — route CRUD; default resolution.
 - `IExcelWriter` → `ClosedXmlTemplateWriter` — load the template and write per the active
-  `TemplateProfile`, preserving formatting and formulas.
+  `TemplateProfile`, preserving formatting and formulas. An optional `signedOn` date also fills the
+  signature cells (name in the `SignatureOptions` handwriting font); without it they stay blank.
 - `IPdfConverter` → `LibreOfficePdfConverter` — invoke `soffice --headless --convert-to pdf`.
 - `ITemplateProfileStore` — persist template file + mappings; select active; rename; delete.
 - `IArtifactStore` → `FileSystemArtifactStore` — write/read/delete generated files under
@@ -116,8 +117,9 @@ Excel/PDF libraries, DB). No client API surface to build; direct library access.
 - `IDeclarationRunStore` → `SqliteDeclarationRunStore` — run metadata + frozen rows (DB only).
 - `DeclarationHistoryService` — owns the run+artifact lifecycle (save, list, open, delete),
   coordinating the two stores above.
-- `GenerationService` — active profile → reviewed draft (defaults + route overrides) → write xlsx →
-  convert pdf → persist an append-only run + artifacts.
+- `GenerationService` — active profile → reviewed draft (defaults + route overrides) → write xlsx
+  (unsigned) and a signed copy (today's date, via `TimeProvider`) → convert the signed copy to pdf →
+  persist an append-only run + artifacts.
 
 ### Persistence
 
@@ -160,8 +162,9 @@ ColumnMapping
 
 CellMapping
   CellRef : string  // e.g. "C1"
-  Source  : enum { MonthName, Year, EmployeeName, PersonnelNumber, Custom }
-  Value   : string? // for Custom / static overrides
+  Source  : enum { MonthName, Year, EmployeeName, PersonnelNumber, Custom, SignatureName, SignatureDate }
+  Value   : string? // for Custom / static overrides; SignatureName falls back to the EmployeeName literal
+  Format  : string? // SignatureDate: .NET date format, default "dd/MM/yyyy" (written as a string)
 
 DeclarationRun
   Id, PeriodYear, PeriodMonth,
@@ -212,7 +215,8 @@ code. A `TemplateProfile` describes:
   optionally `WeekdayName`, `RouteName`, and the individual `OutboundKm` / `ReturnKm` legs —
   each with an optional format string;
 - **cell mappings** for static header fields (month name, year, employee name, personnel
-  number, or a custom literal) written to specific cells.
+  number, or a custom literal) written to specific cells, plus the two **signature cells**
+  (`SignatureName`, `SignatureDate`) that are written only into the PDF's workbook.
 
 `ClosedXmlTemplateWriter` **loads the uploaded template and writes into it** — it never
 rebuilds the workbook — so formatting, merged cells, and formulas are preserved. It writes
@@ -228,6 +232,15 @@ highlights the cells the active mapping would write, on the config page.
 under `generated\`. The bytes still stream to the browser; re-running a month makes another run and
 never overwrites history. A PDF-conversion failure yields an xlsx-only run.
 
+**Generate & sign.** When the active profile maps a `SignatureName` cell, `/declaration` labels the
+button *Generate & sign*: clicking it is the signing act — nothing signs unattended. The template is
+filled twice from the same draft: the **unsigned** fill is the stored/downloaded xlsx (and what the
+history preview renders); the **signed** fill — name in a handwriting font (`Transit:Signature`
+`FontName`, default Segoe Script, which ships with Windows), date = the day Generate was clicked — is
+only ever converted to the PDF and never stored. The signature is the employee's name in a script
+font, exactly as Adobe's typed signature; there is no secret to store or protect. A missing font is
+silently substituted by LibreOffice, so pick one installed machine-wide.
+
 ## 7. PDF conversion
 
 **Default: LibreOffice headless** as a subprocess. Free, good `.xlsx` fidelity, and the PDF is
@@ -239,8 +252,9 @@ does not support Office automation from a service/IIS context; it is unreliable 
 dead end. Managed alternatives (Syncfusion `XlsIO`, GemBox.Spreadsheet, Aspose.Cells) are
 viable if LibreOffice can't be installed — hence the `IPdfConverter` seam.
 
-**Signing is out of scope** and handled manually after download. Digital signing (embedding a
-certificate-based signature) is a possible future `IPdfConverter` decorator.
+**Visual signing** is done upstream, in the workbook the PDF is converted from (see §6
+*Generate & sign*). Certificate-based digital signing (PAdES) is out of scope — it needs a signing
+library and a certificate the receiver trusts; it would be a future `IPdfConverter` decorator.
 
 ## 8. Storage layout
 
@@ -328,6 +342,10 @@ backup — it is a folder-level responsibility.
 | Run lifecycle | Immutable content + manual hard-delete (confirm), no auto-prune | Append-only holds; a mistaken run is still removable; auto-deleting a compliance record is dangerous | Fully immutable; delete + retention policy |
 | Reviewed rows at generation | Thread the grid's route overrides into generation | Makes "freeze the reviewed rows" literally true; closes the slice-4 gap | Server-rebuild from defaults; persist overrides per day |
 | History coordination | A `DeclarationHistoryService` over two dumb stores | One tested place owns DB-and-disk; page + generator stay thin | Fold into `GenerationService`; page coordinates both stores |
+| Signature | Name in a script font + generate date, written into template cells before PDF conversion | Mirrors Adobe's typed signature; no secret, no new dependency, reuses cell mappings | Stamped PNG (image storage + DPAPI for no real gain); PAdES certificate signing (library + trusted cert) |
+| What gets signed | PDF only; stored xlsx stays unsigned (template filled twice) | The PDF is what's handed in | Sign both (signature leaks into the editable file) |
+| When signing happens | Only on an explicit Generate click | Signing attests the reviewed rows; unattended signing bypasses review | Auto-generate + sign on the 1st |
+| Signature date format | Pre-formatted string | A "/" in a sheet number-format follows the locale separator (nl-NL "-") | Date value + number-format |
 
 ## 11. Cross-cutting concerns
 

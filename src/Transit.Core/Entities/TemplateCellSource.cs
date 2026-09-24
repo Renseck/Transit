@@ -8,4 +8,6 @@ public enum TemplateCellSource
     EmployeeName,     // static literal in Value
     PersonnelNumber,  // static literal in Value
     Custom,           // static literal in Value
+    SignatureName,    // signed output only: literal in Value, else the EmployeeName literal
+    SignatureDate,    // signed output only: the signing date, formatted per Format (default dd/MM/yyyy)
 }

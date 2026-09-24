@@ -82,6 +82,78 @@ public class TemplateMappingTests
         Assert.Null(TemplateMapping.ResolveCellValue(empty, 2026, 7));
     }
 
+    [Fact]
+    public void ResolveCellValue_signature_sources_are_null_when_unsigned()
+    {
+        var name = new CellMapping { CellRef = "B50", Source = TemplateCellSource.SignatureName, Value = "Rens van Eck" };
+        var date = new CellMapping { CellRef = "B47", Source = TemplateCellSource.SignatureDate };
+
+        Assert.Null(TemplateMapping.ResolveCellValue(name, 2026, 8));
+        Assert.Null(TemplateMapping.ResolveCellValue(date, 2026, 8));
+    }
+
+    [Fact]
+    public void ResolveCellValue_signature_name_uses_its_literal_when_signed()
+    {
+        var name = new CellMapping { CellRef = "B50", Source = TemplateCellSource.SignatureName, Value = "R. van Eck" };
+        Assert.Equal("R. van Eck",
+            TemplateMapping.ResolveCellValue(name, 2026, 8, new DateOnly(2026, 9, 2), employeeName: "Rens van Eck"));
+    }
+
+    [Fact]
+    public void ResolveCellValue_blank_signature_name_falls_back_to_the_employee_name()
+    {
+        var name = new CellMapping { CellRef = "B50", Source = TemplateCellSource.SignatureName, Value = " " };
+        Assert.Equal("Rens van Eck",
+            TemplateMapping.ResolveCellValue(name, 2026, 8, new DateOnly(2026, 9, 2), employeeName: "Rens van Eck"));
+    }
+
+    [Fact]
+    public void ResolveCellValue_signature_name_without_any_name_is_null()
+    {
+        var name = new CellMapping { CellRef = "B50", Source = TemplateCellSource.SignatureName };
+        Assert.Null(TemplateMapping.ResolveCellValue(name, 2026, 8, new DateOnly(2026, 9, 2)));
+    }
+
+    [Fact]
+    public void ResolveCellValue_signature_date_defaults_to_slashed_day_month_year_string()
+    {
+        var date = new CellMapping { CellRef = "B47", Source = TemplateCellSource.SignatureDate };
+        Assert.Equal("02/09/2026", TemplateMapping.ResolveCellValue(date, 2026, 8, new DateOnly(2026, 9, 2)));
+    }
+
+    [Fact]
+    public void ResolveCellValue_signature_date_honours_the_mapping_format()
+    {
+        var date = new CellMapping { CellRef = "B47", Source = TemplateCellSource.SignatureDate, Format = "d-M-yyyy" };
+        Assert.Equal("2-9-2026", TemplateMapping.ResolveCellValue(date, 2026, 8, new DateOnly(2026, 9, 2)));
+    }
+
+    [Fact]
+    public void EmployeeName_is_the_first_non_blank_employee_name_literal()
+    {
+        var cells = new[]
+        {
+            new CellMapping { CellRef = "G5", Source = TemplateCellSource.MonthName },
+            new CellMapping { CellRef = "C5", Source = TemplateCellSource.EmployeeName, Value = " Rens van Eck " },
+        };
+        Assert.Equal("Rens van Eck", TemplateMapping.EmployeeName(cells));
+    }
+
+    [Fact]
+    public void EmployeeName_is_null_when_unmapped()
+        => Assert.Null(TemplateMapping.EmployeeName([new CellMapping { CellRef = "G5", Source = TemplateCellSource.MonthName }]));
+
+    [Fact]
+    public void HasSignature_is_true_only_with_a_signature_name_cell()
+    {
+        var date = new CellMapping { CellRef = "B47", Source = TemplateCellSource.SignatureDate };
+        var name = new CellMapping { CellRef = "B50", Source = TemplateCellSource.SignatureName };
+
+        Assert.False(TemplateMapping.HasSignature([date]));
+        Assert.True(TemplateMapping.HasSignature([date, name]));
+    }
+
     [Theory]
     [InlineData(10, 15, 0)]   // under capacity — no inserts
     [InlineData(15, 15, 0)]   // exactly full — no inserts

@@ -4,6 +4,7 @@
 @using Transit.Core.Declarations
 @using Transit.Core.Entities
 @using Transit.Core.Services
+@using Transit.Core.Templates
 @inject DeclarationService Declarations
 @inject RouteService Routes
 @inject LocationService Locations
@@ -27,7 +28,7 @@
             <button type="button" class="tr-ctrl tr-ctrl--now" @onclick="GoToday">Today</button>
             <button type="button" class="tr-ctrl" @onclick="NextMonth" aria-label="Next month">Next &rsaquo;</button>
             <button type="button" class="tr-ctrl" @onclick="Generate" disabled="@(!_hasActiveProfile || _generating)">
-                @(_generating ? "Generating…" : "Generate")
+                @(_generating ? "Generating…" : _signs ? "Generate & sign" : "Generate")
             </button>
         </nav>
     </header>
@@ -113,6 +114,7 @@
     private int _year = DateTime.Today.Year;
     private int _month = DateTime.Today.Month;
     private bool _hasActiveProfile;
+    private bool _signs;
     private bool _generating;
     private DeclarationDraft? _draft;
     private List<WorkLocation> _activeLocations = [];
@@ -130,7 +132,9 @@
         _routes = [.. await Routes.GetAllAsync()];
 
         await LoadAsync();
-        _hasActiveProfile = await Profiles.GetActiveAsync() is not null;
+        var profile = await Profiles.GetActiveAsync();
+        _hasActiveProfile = profile is not null;
+        _signs = profile is not null && TemplateMapping.HasSignature(profile.CellMappings);
 
         var all = await Locations.GetAllAsync(includeArchived: true);
         var def = all.FirstOrDefault(l => l.IsDefaultForUnmarked);
@@ -241,7 +245,7 @@
             if (result.PdfBytes is not null)
             {
                 await DownloadAsync(result.PdfFileName, result.PdfBytes);
-                Snackbar.Add("Generated and saved to History.", Severity.Success);
+                Snackbar.Add(_signs ? "Generated, signed and saved to History." : "Generated and saved to History.", Severity.Success);
             }
             else
             {

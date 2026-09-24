@@ -123,7 +123,7 @@
                                 }
                             </MudSelect>
                             <MudTextField @bind-Value="cell.CellRef" Placeholder="C5" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                            <MudTextField @bind-Value="cell.Value" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <MudTextField @bind-Value="cell.Value" Placeholder="@ValuePlaceholder(cell.Source)" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" title="Remove" OnClick="() => _cells.Remove(cell)" />
                         </div>
                     }
@@ -295,6 +295,15 @@
 
     private void AddColumn() => _columns.Add(new ColumnMapping { Field = TemplateColumnField.Date, Column = "A" });
     private void AddCell() => _cells.Add(new CellMapping { CellRef = "A1", Source = TemplateCellSource.MonthName });
+
+    // Signature cells are filled at generate time; say so rather than leaving a blank box that looks required.
+    private static string? ValuePlaceholder(TemplateCellSource source) => source switch
+    {
+        TemplateCellSource.SignatureName => "Employee name",
+        TemplateCellSource.SignatureDate => "Generate date",
+        TemplateCellSource.MonthName or TemplateCellSource.Year => "From period",
+        _ => null,
+    };
 
     private async Task SaveMappings()
     {

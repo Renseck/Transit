@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Transit.Core.Abstractions;
 using Transit.Core.Services;
@@ -18,6 +19,7 @@ public static class InfrastructureServiceCollectionExtensions
     {
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
         services.Configure<PdfConverterOptions>(configuration.GetSection(PdfConverterOptions.SectionName));
+        services.Configure<SignatureOptions>(configuration.GetSection(SignatureOptions.SectionName));
 
         // Context factory: the Blazor Server-safe way to use EF (no shared scoped context across a circuit).
         services.AddDbContextFactory<TransitDbContext>((sp, options) =>
@@ -40,6 +42,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<DeclarationService>();
         services.AddScoped<DeclarationHistoryService>();
         services.AddScoped<GenerationService>();
+        services.TryAddSingleton(TimeProvider.System);
 
         return services;
     }

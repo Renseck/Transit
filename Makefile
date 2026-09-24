@@ -7,7 +7,7 @@ WEB_PROJ   = src/Transit.Web/Transit.Web.csproj
 INFRA_PROJ = src/Transit.Infrastructure/Transit.Infrastructure.csproj
 TEST_PROJ  = tests/Transit.Tests/Transit.Tests.csproj
 
-.PHONY: build test run publish publish-restart migrate db-update rebuild-test
+.PHONY: build test run publish publish-restart migrate db-update rebuild-test install
 
 build:
 	dotnet build $(SLN)
@@ -36,3 +36,6 @@ db-update:
 	dotnet ef database update --project $(INFRA_PROJ) --startup-project $(WEB_PROJ)
 
 rebuild-test: build test
+
+install:
+	powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/Install-Transit.ps1
